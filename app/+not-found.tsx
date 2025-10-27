@@ -1,18 +1,20 @@
-// template
 import { Link, Stack } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
+import GradientBackground from "@/components/GradientBackground";
+import { AuraColors } from "@/constants/colors";
 
 export default function NotFoundScreen() {
   return (
     <>
-      <Stack.Screen options={{ title: "Oops!" }} />
-      <View style={styles.container}>
-        <Text style={styles.title}>This screen doesn&apos;t exist.</Text>
-
-        <Link href="/" style={styles.link}>
-          <Text style={styles.linkText}>Go to home screen!</Text>
-        </Link>
-      </View>
+      <Stack.Screen options={{ title: "Oops!", headerShown: false }} />
+      <GradientBackground>
+        <View style={styles.container}>
+          <Text style={styles.title}>This screen doesn&apos;t exist.</Text>
+          <Link href="/" style={styles.link}>
+            <Text style={styles.linkText}>Go to home screen!</Text>
+          </Link>
+        </View>
+      </GradientBackground>
     </>
   );
 }
@@ -25,15 +27,21 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   title: {
-    fontSize: 20,
-    fontWeight: "bold",
+    fontSize: 24,
+    fontWeight: "bold" as const,
+    color: AuraColors.white,
+    marginBottom: 16,
   },
   link: {
     marginTop: 15,
     paddingVertical: 15,
+    paddingHorizontal: 30,
+    backgroundColor: AuraColors.accentOrange,
+    borderRadius: 14,
   },
   linkText: {
-    fontSize: 14,
-    color: "#2e78b7",
+    fontSize: 16,
+    fontWeight: "600" as const,
+    color: AuraColors.white,
   },
 });
