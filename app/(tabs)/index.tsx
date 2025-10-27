@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Mic, Square } from 'lucide-react-native';
+import { Mic, Square, Pause } from 'lucide-react-native';
 import { Audio } from 'expo-av';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -10,14 +10,14 @@ import { transcribeAudioFile, OpenAIRealtimeTranscription } from '@/lib/openai-t
 import * as Haptics from 'expo-haptics';
 import RecordingPlaybackModal from '@/components/RecordingPlaybackModal';
 
-type RecordingState = 'idle' | 'recording' | 'processing';
+type RecordingState = 'idle' | 'recording' | 'paused' | 'processing';
 
 export default function RecordScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const [recordingState, setRecordingState] = useState<RecordingState>('idle');
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [liveTranscript, setLiveTranscript] = useState<string>('');
+  const [liveTranscript, setLiveTranscript] = useState<string>('');  const [currentWord, setCurrentWord] = useState<string>('');
   const [finalTranscript, setFinalTranscript] = useState<string>('');
   const [recordedUri, setRecordedUri] = useState<string>('');
   const [permissionGranted, setPermissionGranted] = useState<boolean>(false);
@@ -176,31 +176,52 @@ export default function RecordScreen() {
   };
 
   const startLiveTranscription = () => {
-    const transcriptPhrases = [
-      'Starting transcription...',
-      'I am',
-      'I am speaking',
-      'I am speaking into',
-      'I am speaking into the',
-      'I am speaking into the microphone',
-      'I am speaking into the microphone and',
-      'I am speaking into the microphone and the',
-      'I am speaking into the microphone and the app',
-      'I am speaking into the microphone and the app is',
-      'I am speaking into the microphone and the app is transcribing',
-      'I am speaking into the microphone and the app is transcribing my words',
-      'I am speaking into the microphone and the app is transcribing my words in real-time',
+    const words = [
+      'Starting', 'transcription', 'I', 'am', 'speaking', 'into', 'the', 'microphone',
+      'and', 'the', 'app', 'is', 'transcribing', 'my', 'words', 'in', 'real', 'time',
+      'as', 'I', 'speak', 'each', 'word', 'is', 'being', 'captured', 'live'
     ];
 
+    let fullText = '';
     let index = 0;
+
     const interval = setInterval(() => {
-      if (index < transcriptPhrases.length && recordingState === 'recording') {
-        setLiveTranscript(transcriptPhrases[index]);
+      if (index < words.length && recordingState === 'recording') {
+        const word = words[index];
+        setCurrentWord(word);
+        fullText += (index > 0 ? ' ' : '') + word;
+        setLiveTranscript(fullText);
         index++;
       } else {
         clearInterval(interval);
+        setCurrentWord('');
       }
-    }, 1200);
+    }, 400);
+  };
+
+  const pauseRecording = async () => {
+    if (!recording) return;
+
+    try {
+      console.log('Pausing recording...');
+      await recording.pauseAsync();
+      setRecordingState('paused');
+      setCurrentWord('');
+    } catch (error) {
+      console.error('Failed to pause recording:', error);
+    }
+  };
+
+  const resumeRecording = async () => {
+    if (!recording) return;
+
+    try {
+      console.log('Resuming recording...');
+      await recording.startAsync();
+      setRecordingState('recording');
+    } catch (error) {
+      console.error('Failed to resume recording:', error);
+    }
   };
 
   const stopRecording = async () => {
@@ -219,6 +240,7 @@ export default function RecordScreen() {
       console.log('Recording stopped, URI:', uri);
       
       setRecording(null);
+      setCurrentWord('');
 
       if (uri) {
         setRecordedUri(uri);
@@ -254,9 +276,25 @@ export default function RecordScreen() {
     }
     if (recordingState === 'idle') {
       startRecording();
-    } else if (recordingState === 'recording') {
-      stopRecording();
     }
+  };
+
+  const handlePausePress = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    if (recordingState === 'recording') {
+      pauseRecording();
+    } else if (recordingState === 'paused') {
+      resumeRecording();
+    }
+  };
+
+  const handleStopPress = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    stopRecording();
   };
 
   const formatDuration = (seconds: number): string => {
@@ -317,7 +355,22 @@ export default function RecordScreen() {
                 <View style={styles.transcriptContainer}>
                   <Text style={styles.transcriptLabel}>Live Transcription</Text>
                   <ScrollView style={styles.transcriptScroll}>
-                    <Text style={styles.transcriptText}>{liveTranscript}</Text>
+                    <Text style={styles.transcriptText}>
+                      {liveTranscript.split(' ').map((word, idx, arr) => {
+                        const isCurrentWord = idx === arr.length - 1 && word === currentWord;
+                        return (
+                          <Text
+                            key={idx}
+                            style={[
+                              styles.transcriptWord,
+                              isCurrentWord && styles.highlightedWord,
+                            ]}
+                          >
+                            {word}{idx < arr.length - 1 ? ' ' : ''}
+                          </Text>
+                        );
+                      })}
+                    </Text>
                   </ScrollView>
                 </View>
               )}
@@ -343,30 +396,54 @@ export default function RecordScreen() {
         </View>
 
         <View style={[styles.buttonContainer, { paddingBottom: insets.bottom + 100 }]}>
-          <TouchableOpacity
-            style={[
-              styles.recordButton,
-              recordingState === 'recording' && styles.recordButtonActive,
-            ]}
-            onPress={handleRecordPress}
-            activeOpacity={0.8}
-            disabled={recordingState === 'processing'}
-          >
-            <Animated.View
-              style={[
-                styles.recordButtonInner,
-                recordingState === 'recording' && {
-                  transform: [{ scale: pulseAnim }],
-                },
-              ]}
+          {recordingState === 'idle' ? (
+            <TouchableOpacity
+              style={styles.recordButton}
+              onPress={handleRecordPress}
+              activeOpacity={0.8}
             >
-              {recordingState === 'recording' ? (
-                <Square color={AuraColors.white} size={32} fill={AuraColors.white} />
-              ) : (
+              <View style={styles.recordButtonInner}>
                 <Mic color={AuraColors.white} size={36} />
-              )}
-            </Animated.View>
-          </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          ) : recordingState === 'recording' || recordingState === 'paused' ? (
+            <View style={styles.splitButtonContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.splitButton,
+                  styles.pauseButton,
+                  recordingState === 'paused' && styles.pausedButton,
+                ]}
+                onPress={handlePausePress}
+                activeOpacity={0.8}
+              >
+                <Animated.View
+                  style={[
+                    styles.splitButtonInner,
+                    recordingState === 'recording' && {
+                      transform: [{ scale: pulseAnim }],
+                    },
+                  ]}
+                >
+                  {recordingState === 'paused' ? (
+                    <Mic color={AuraColors.white} size={28} />
+                  ) : (
+                    <Pause color={AuraColors.white} size={28} />
+                  )}
+                </Animated.View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.splitButton, styles.stopButton]}
+                onPress={handleStopPress}
+                activeOpacity={0.8}
+              >
+                <View style={styles.splitButtonInner}>
+                  <Square color={AuraColors.white} size={28} fill={AuraColors.white} />
+                </View>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </View>
       </View>
 
@@ -455,6 +532,16 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.text,
     fontWeight: '400' as const,
   },
+  transcriptWord: {
+    fontSize: 18,
+    lineHeight: 28,
+    color: colors.text,
+    fontWeight: '400' as const,
+  },
+  highlightedWord: {
+    color: AuraColors.accentOrange,
+    fontWeight: '700' as const,
+  },
   processingContainer: {
     padding: 40,
     alignItems: 'center',
@@ -502,6 +589,36 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: '#FF4757',
   },
   recordButtonInner: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  splitButtonContainer: {
+    flexDirection: 'row',
+    gap: 24,
+    alignItems: 'center',
+  },
+  splitButton: {
+    width: 75,
+    height: 75,
+    borderRadius: 37.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: AuraColors.accentOrange,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  pauseButton: {
+    backgroundColor: '#FFA726',
+  },
+  pausedButton: {
+    backgroundColor: AuraColors.accentOrange,
+  },
+  stopButton: {
+    backgroundColor: '#FF4757',
+  },
+  splitButtonInner: {
     alignItems: 'center',
     justifyContent: 'center',
   },

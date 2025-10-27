@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 
-const OPENAI_API_KEY = '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';
+const OPENAI_API_KEY = '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';
 
 export interface TranscriptionCallback {
   onTranscript: (text: string, isFinal: boolean) => void;
