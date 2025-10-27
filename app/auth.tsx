@@ -1,204 +1,52 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Platform, Alert, TextInput, KeyboardAvoidingView, ScrollView, Modal, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Platform, TextInput, KeyboardAvoidingView, ScrollView, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Haptics from 'expo-haptics';
-import { supabase } from '@/lib/supabase';
 import { AuraColors } from '@/constants/colors';
 import { LogIn, X, Mail, Lock } from 'lucide-react-native';
-
-WebBrowser.maybeCompleteAuthSession();
 
 export default function AuthScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
   const [showEmailAuth, setShowEmailAuth] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
 
-  const handleGoogleSignIn = async () => {
-    try {
-      setIsLoading(true);
-      if (Platform.OS !== 'web') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
-
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: 'rork-app://auth/callback',
-        },
-      });
-
-      if (error) {
-        console.error('Google Sign In Error:', error);
-        Alert.alert('Sign In Failed', error.message);
-        return;
-      }
-
-      if (data?.url) {
-        const result = await WebBrowser.openAuthSessionAsync(
-          data.url,
-          'rork-app://auth/callback'
-        );
-
-        if (result.type === 'success') {
-          const url = result.url;
-          const params = new URL(url).searchParams;
-          const accessToken = params.get('access_token');
-          const refreshToken = params.get('refresh_token');
-
-          if (accessToken && refreshToken) {
-            await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-            router.replace('/(tabs)');
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Google Sign In Error:', error);
-      Alert.alert('Error', 'Failed to sign in with Google');
-    } finally {
-      setIsLoading(false);
+  const handleGoogleSignIn = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
+    router.replace('/(tabs)');
   };
 
-  const handleAppleSignIn = async () => {
-    try {
-      setIsLoading(true);
-      if (Platform.OS !== 'web') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
-
-      if (Platform.OS !== 'ios') {
-        Alert.alert('Not Available', 'Apple Sign In is only available on iOS devices');
-        setIsLoading(false);
-        return;
-      }
-
-      const credential = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-        ],
-      });
-
-      if (credential.identityToken) {
-        const { error } = await supabase.auth.signInWithIdToken({
-          provider: 'apple',
-          token: credential.identityToken,
-        });
-
-        if (error) {
-          console.error('Apple Sign In Error:', error);
-          Alert.alert('Sign In Failed', error.message);
-          return;
-        }
-
-        router.replace('/(tabs)');
-      }
-    } catch (error: any) {
-      if (error.code === 'ERR_REQUEST_CANCELED') {
-        console.log('User canceled Apple Sign In');
-      } else {
-        console.error('Apple Sign In Error:', error);
-        Alert.alert('Error', 'Failed to sign in with Apple');
-      }
-    } finally {
-      setIsLoading(false);
+  const handleAppleSignIn = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
+    router.replace('/(tabs)');
   };
 
-  const handleEmailSignIn = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please enter both email and password');
-      return;
+  const handleEmailSignIn = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-
-    try {
-      setIsLoading(true);
-      if (Platform.OS !== 'web') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
-
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-
-      if (error) {
-        console.error('Email Sign In Error:', error);
-        Alert.alert('Sign In Failed', error.message);
-        return;
-      }
-
-      if (data.session) {
-        setShowEmailAuth(false);
-        setEmail('');
-        setPassword('');
-        router.replace('/(tabs)');
-      }
-    } catch (error: any) {
-      console.error('Email Sign In Error:', error);
-      Alert.alert('Error', 'Failed to sign in');
-    } finally {
-      setIsLoading(false);
-    }
+    setShowEmailAuth(false);
+    setEmail('');
+    setPassword('');
+    router.replace('/(tabs)');
   };
 
-  const handleEmailSignUp = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please enter both email and password');
-      return;
+  const handleEmailSignUp = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      if (Platform.OS !== 'web') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
-
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-      });
-
-      if (error) {
-        console.error('Email Sign Up Error:', error);
-        Alert.alert('Sign Up Failed', error.message);
-        return;
-      }
-
-      if (data.session) {
-        setShowEmailAuth(false);
-        setEmail('');
-        setPassword('');
-        Alert.alert('Success', 'Account created successfully!');
-        router.replace('/(tabs)');
-      } else if (data.user) {
-        Alert.alert('Success', 'Please check your email to verify your account');
-        setShowEmailAuth(false);
-        setEmail('');
-        setPassword('');
-      }
-    } catch (error: any) {
-      console.error('Email Sign Up Error:', error);
-      Alert.alert('Error', 'Failed to create account');
-    } finally {
-      setIsLoading(false);
-    }
+    setShowEmailAuth(false);
+    setEmail('');
+    setPassword('');
+    router.replace('/(tabs)');
   };
 
   return (
@@ -222,7 +70,6 @@ export default function AuthScreen() {
             style={styles.googleButton}
             onPress={handleGoogleSignIn}
             activeOpacity={0.8}
-            disabled={isLoading}
           >
             <View style={styles.buttonContent}>
               <View style={styles.iconContainer}>
@@ -237,7 +84,6 @@ export default function AuthScreen() {
               style={styles.appleButton}
               onPress={handleAppleSignIn}
               activeOpacity={0.8}
-              disabled={isLoading}
             >
               <View style={styles.buttonContent}>
                 <View style={styles.iconContainer}>
@@ -350,22 +196,16 @@ export default function AuthScreen() {
               <TouchableOpacity
                 style={styles.submitButton}
                 onPress={isSignUp ? handleEmailSignUp : handleEmailSignIn}
-                disabled={isLoading}
                 activeOpacity={0.8}
               >
-                {isLoading ? (
-                  <ActivityIndicator color={AuraColors.white} />
-                ) : (
-                  <Text style={styles.submitButtonText}>
-                    {isSignUp ? 'Sign Up' : 'Sign In'}
-                  </Text>
-                )}
+                <Text style={styles.submitButtonText}>
+                  {isSignUp ? 'Sign Up' : 'Sign In'}
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.switchButton}
                 onPress={() => setIsSignUp(!isSignUp)}
-                disabled={isLoading}
               >
                 <Text style={styles.switchButtonText}>
                   {isSignUp
