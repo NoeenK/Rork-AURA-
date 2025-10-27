@@ -185,6 +185,133 @@ export async function transcribeAudioFile(uri: string): Promise<string> {
   }
 }
 
+export interface CalendarEvent {
+  title: string;
+  date: string;
+  time?: string;
+  description: string;
+  participants?: string[];
+}
+
+export async function extractCalendarEvents(transcript: string): Promise<CalendarEvent[]> {
+  try {
+    console.log('Extracting calendar events from transcript...');
+    
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an AI assistant that extracts calendar events from conversation transcripts. 
+Extract any mentions of events, meetings, appointments, or plans with dates and times. 
+Return ONLY a valid JSON array of events. Each event should have: title, date (YYYY-MM-DD format), time (optional, HH:MM format), description, and participants (optional array of names).
+If no events are found, return an empty array [].
+Do not include any markdown formatting or explanation, just the raw JSON array.`
+          },
+          {
+            role: 'user',
+            content: `Extract calendar events from this transcript:\n\n${transcript}\n\nCurrent date: ${new Date().toISOString()}`
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 500,
+      }),
+    });
+
+    console.log('Calendar events response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Calendar events error response:', errorText);
+      return [];
+    }
+
+    const data = await response.json();
+    const content = data.choices[0]?.message?.content || '[]';
+    console.log('Calendar events raw response:', content);
+    
+    const cleanedContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const events = JSON.parse(cleanedContent);
+    console.log('Extracted events:', events);
+    
+    return Array.isArray(events) ? events : [];
+  } catch (error) {
+    console.error('Calendar event extraction error:', error);
+    return [];
+  }
+}
+
+export interface AuraSummary {
+  overview: string;
+  tasks: string[];
+}
+
+export async function generateAuraSummary(transcript: string): Promise<AuraSummary> {
+  try {
+    console.log('Generating AURA summary for transcript...');
+    
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are AURA, an AI assistant that creates insightful summaries of voice recordings. 
+Create a JSON object with two fields:
+1. "overview": A concise 2-3 sentence overview of the conversation
+2. "tasks": An array of actionable tasks or to-dos mentioned (empty array if none)
+Return ONLY valid JSON without markdown formatting.`
+          },
+          {
+            role: 'user',
+            content: `Analyze this transcript and provide an overview and tasks:\n\n${transcript}`
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 300,
+      }),
+    });
+
+    console.log('AURA summary response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('AURA summary error response:', errorText);
+      throw new Error(`AURA summary generation failed: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices[0]?.message?.content || '{}';
+    console.log('AURA summary raw response:', content);
+    
+    const cleanedContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const summary = JSON.parse(cleanedContent);
+    console.log('AURA summary generated successfully');
+    
+    return {
+      overview: summary.overview || 'No overview available',
+      tasks: Array.isArray(summary.tasks) ? summary.tasks : [],
+    };
+  } catch (error) {
+    console.error('AURA summary generation error:', error);
+    return {
+      overview: `Recording from ${new Date().toLocaleDateString()}`,
+      tasks: [],
+    };
+  }
+}
+
 export async function generateSummary(transcript: string): Promise<string> {
   try {
     console.log('Generating summary for transcript...');

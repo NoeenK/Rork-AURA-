@@ -6,12 +6,12 @@ import { Audio } from 'expo-av';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
-import { transcribeAudioFile, generateSummary } from '@/lib/openai-transcription';
+import { transcribeAudioFile, generateSummary, generateAuraSummary, extractCalendarEvents } from '@/lib/openai-transcription';
 import * as Haptics from 'expo-haptics';
 import { useJournal } from '@/contexts/JournalContext';
 import { router } from 'expo-router';
 
-type RecordingState = 'idle' | 'recording' | 'processing';
+type RecordingState = 'idle' | 'recording' | 'paused' | 'processing';
 type MenuState = 'collapsed' | 'expanded';
 
 export default function MainScreen() {
@@ -26,6 +26,7 @@ export default function MainScreen() {
   const [currentWord, setCurrentWord] = useState<string>('');
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const [permissionGranted, setPermissionGranted] = useState<boolean>(false);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
 
   const menuAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -112,6 +113,12 @@ export default function MainScreen() {
       durationInterval.current = setInterval(() => {
         setRecordingDuration((prev) => prev + 1);
       }, 1000) as any;
+    } else if (recordingState === 'paused') {
+      stopAnimations();
+      if (durationInterval.current) {
+        clearInterval(durationInterval.current);
+        durationInterval.current = null;
+      }
     } else {
       stopAnimations();
       if (durationInterval.current) {
@@ -256,6 +263,14 @@ export default function MainScreen() {
       const summary = await generateSummary(text);
       console.log('Summary generated:', summary);
       
+      console.log('Generating AURA summary...');
+      const auraSummary = await generateAuraSummary(text);
+      console.log('AURA summary generated:', auraSummary);
+      
+      console.log('Extracting calendar events...');
+      const calendarEvents = await extractCalendarEvents(text);
+      console.log('Calendar events extracted:', calendarEvents);
+      
       const title = text.slice(0, 50) + (text.length > 50 ? '...' : '');
 
       addEntry({
@@ -263,6 +278,8 @@ export default function MainScreen() {
         audioUri: uri,
         transcript: text,
         summary,
+        auraSummary,
+        calendarEvents,
         date: new Date().toLocaleString(),
         duration: recordingDuration,
       });
@@ -270,6 +287,7 @@ export default function MainScreen() {
       setLiveTranscript('');
       setRecordingState('idle');
       setRecordingDuration(0);
+      setIsPaused(false);
 
       if (Platform.OS !== 'web') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -278,6 +296,7 @@ export default function MainScreen() {
       console.error('Transcription error:', error);
       setRecordingState('idle');
       setRecordingDuration(0);
+      setIsPaused(false);
     }
   };
 
@@ -285,7 +304,41 @@ export default function MainScreen() {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
+    if (recordingState === 'recording' || recordingState === 'paused') {
+      if (recording) {
+        recording.stopAndUnloadAsync();
+        setRecording(null);
+      }
+      setRecordingState('idle');
+      setRecordingDuration(0);
+      setLiveTranscript('');
+      setIsPaused(false);
+    }
     toggleMenu();
+  };
+
+  const handlePause = async () => {
+    if (!recording) return;
+    
+    try {
+      if (Platform.OS !== 'web') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+      
+      if (isPaused) {
+        await recording.startAsync();
+        setIsPaused(false);
+        setRecordingState('recording');
+        console.log('Recording resumed');
+      } else {
+        await recording.pauseAsync();
+        setIsPaused(true);
+        setRecordingState('paused');
+        console.log('Recording paused');
+      }
+    } catch (error) {
+      console.error('Failed to pause/resume recording:', error);
+    }
   };
 
   const handleJournal = () => {
@@ -362,16 +415,6 @@ export default function MainScreen() {
     outputRange: [0, -100],
   });
 
-  const recordButton4Scale = menuAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-  });
-
-  const recordButton4TranslateY = menuAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -200],
-  });
-
   const styles = createStyles(colors);
   
   return (
@@ -397,7 +440,7 @@ export default function MainScreen() {
         </View>
         
         <View style={styles.recordingSection}>
-          {recordingState === 'recording' && (
+          {(recordingState === 'recording' || recordingState === 'paused') && (
             <>
               <View style={styles.waveformContainer}>
                 {waveAnims.map((anim, index) => (
@@ -411,6 +454,7 @@ export default function MainScreen() {
                           outputRange: [10, 120],
                         }),
                         backgroundColor: AuraColors.accentOrange,
+                        opacity: recordingState === 'paused' ? 0.3 : 0.8,
                       },
                     ]}
                   />
@@ -420,6 +464,9 @@ export default function MainScreen() {
               <Text style={styles.recordingDuration}>
                 {formatDuration(recordingDuration)}
               </Text>
+              {recordingState === 'paused' && (
+                <Text style={styles.pausedLabel}>PAUSED</Text>
+              )}
 
               {liveTranscript !== '' && (
                 <View style={styles.transcriptContainer}>
@@ -467,45 +514,42 @@ export default function MainScreen() {
         </View>
 
         <View style={[styles.buttonContainer, { paddingBottom: insets.bottom + 40 }]}>
-          {recordingState === 'recording' ? (
-            <TouchableOpacity
-              style={styles.stopButton}
-              onPress={stopRecording}
-              activeOpacity={0.8}
-            >
-              <Animated.View
-                style={[
-                  styles.stopButtonInner,
-                  { transform: [{ scale: pulseAnim }] },
-                ]}
+          {(recordingState === 'recording' || recordingState === 'paused') ? (
+            <View style={styles.recordingControls}>
+              <TouchableOpacity
+                style={styles.pauseButton}
+                onPress={handlePause}
+                activeOpacity={0.8}
               >
-                <Square color={AuraColors.white} size={32} fill={AuraColors.white} />
-              </Animated.View>
-            </TouchableOpacity>
+                <View style={styles.pauseIconContainer}>
+                  {isPaused ? (
+                    <View style={styles.playIcon} />
+                  ) : (
+                    <View style={styles.pauseIcon}>
+                      <View style={styles.pauseBar} />
+                      <View style={styles.pauseBar} />
+                    </View>
+                  )}
+                </View>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.stopButton}
+                onPress={stopRecording}
+                activeOpacity={0.8}
+              >
+                <Animated.View
+                  style={[
+                    styles.stopButtonInner,
+                    { transform: [{ scale: recordingState === 'recording' ? pulseAnim : 1 }] },
+                  ]}
+                >
+                  <Square color={AuraColors.white} size={32} fill={AuraColors.white} />
+                </Animated.View>
+              </TouchableOpacity>
+            </View>
           ) : (
             <>
-              <Animated.View
-                style={[
-                  styles.expandedButton,
-                  {
-                    transform: [
-                      { scale: recordButton1Scale },
-                      { translateY: recordButton1TranslateY },
-                    ],
-                    opacity: menuAnim,
-                  },
-                ]}
-              >
-                <TouchableOpacity
-                  style={[styles.menuButton, styles.recordMenuButton]}
-                  onPress={startRecording}
-                  activeOpacity={0.8}
-                >
-                  <Mic color={AuraColors.white} size={24} />
-                  <Text style={styles.menuButtonLabel}>Record</Text>
-                </TouchableOpacity>
-              </Animated.View>
-
               <Animated.View
                 style={[
                   styles.expandedButton,
@@ -534,6 +578,28 @@ export default function MainScreen() {
                   styles.expandedButton,
                   {
                     transform: [
+                      { scale: recordButton1Scale },
+                      { translateY: recordButton1TranslateY },
+                    ],
+                    opacity: menuAnim,
+                  },
+                ]}
+              >
+                <TouchableOpacity
+                  style={[styles.menuButton, styles.recordMenuButton]}
+                  onPress={startRecording}
+                  activeOpacity={0.8}
+                >
+                  <Mic color={AuraColors.white} size={24} />
+                  <Text style={styles.menuButtonLabel}>Record</Text>
+                </TouchableOpacity>
+              </Animated.View>
+
+              <Animated.View
+                style={[
+                  styles.expandedButton,
+                  {
+                    transform: [
                       { scale: recordButton3Scale },
                       { translateX: recordButton3TranslateX },
                       { translateY: recordButton3TranslateY },
@@ -548,38 +614,20 @@ export default function MainScreen() {
                   activeOpacity={0.8}
                 >
                   <MessageCircle color={AuraColors.white} size={24} />
-                  <Text style={styles.menuButtonLabel}>ASK</Text>
-                </TouchableOpacity>
-              </Animated.View>
-
-              <Animated.View
-                style={[
-                  styles.expandedButton,
-                  {
-                    transform: [
-                      { scale: recordButton4Scale },
-                      { translateY: recordButton4TranslateY },
-                    ],
-                    opacity: menuAnim,
-                  },
-                ]}
-              >
-                <TouchableOpacity
-                  style={[styles.menuButton, styles.cancelMenuButton]}
-                  onPress={handleCancel}
-                  activeOpacity={0.8}
-                >
-                  <X color={AuraColors.white} size={24} />
-                  <Text style={styles.menuButtonLabel}>Cancel</Text>
+                  <Text style={styles.menuButtonLabel}>Ask AURA</Text>
                 </TouchableOpacity>
               </Animated.View>
 
               <TouchableOpacity
-                style={styles.mainMicButton}
-                onPress={toggleMenu}
+                style={[styles.mainMicButton, menuState === 'expanded' && styles.cancelButton]}
+                onPress={menuState === 'expanded' ? handleCancel : toggleMenu}
                 activeOpacity={0.8}
               >
-                <Mic color={AuraColors.white} size={36} />
+                {menuState === 'expanded' ? (
+                  <X color={AuraColors.white} size={36} />
+                ) : (
+                  <Mic color={AuraColors.white} size={36} />
+                )}
               </TouchableOpacity>
             </>
           )}
@@ -776,5 +824,60 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: '600' as const,
     color: AuraColors.white,
     marginTop: 4,
+  },
+  recordingControls: {
+    flexDirection: 'row',
+    gap: 24,
+    alignItems: 'center',
+  },
+  pauseButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FFA500',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#FFA500',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  pauseIconContainer: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pauseIcon: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  pauseBar: {
+    width: 4,
+    height: 24,
+    backgroundColor: AuraColors.white,
+    borderRadius: 2,
+  },
+  playIcon: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 18,
+    borderTopWidth: 12,
+    borderBottomWidth: 12,
+    borderLeftColor: AuraColors.white,
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+    marginLeft: 4,
+  },
+  pausedLabel: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: colors.textSecondary,
+    marginTop: 8,
+    letterSpacing: 2,
+  },
+  cancelButton: {
+    backgroundColor: '#95A5A6',
   },
 });

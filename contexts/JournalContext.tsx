@@ -1,5 +1,6 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useCallback, useMemo } from 'react';
+import type { CalendarEvent, AuraSummary } from '@/lib/openai-transcription';
 
 export interface JournalEntry {
   id: string;
@@ -7,6 +8,8 @@ export interface JournalEntry {
   audioUri: string;
   transcript: string;
   summary: string;
+  auraSummary?: AuraSummary;
+  calendarEvents?: CalendarEvent[];
   date: string;
   timestamp: number;
   duration: number;
@@ -14,6 +17,7 @@ export interface JournalEntry {
 
 export const [JournalProvider, useJournal] = createContextHook(() => {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
 
   const addEntry = useCallback((entry: Omit<JournalEntry, 'id' | 'timestamp'>) => {
     const newEntry: JournalEntry = {
@@ -22,6 +26,10 @@ export const [JournalProvider, useJournal] = createContextHook(() => {
       timestamp: Date.now(),
     };
     setEntries((prev) => [newEntry, ...prev]);
+    
+    if (entry.calendarEvents && entry.calendarEvents.length > 0) {
+      setCalendarEvents((prev) => [...prev, ...entry.calendarEvents!]);
+    }
   }, []);
 
   const deleteEntry = useCallback((id: string) => {
@@ -34,8 +42,9 @@ export const [JournalProvider, useJournal] = createContextHook(() => {
 
   return useMemo(() => ({
     entries,
+    calendarEvents,
     addEntry,
     deleteEntry,
     getEntry,
-  }), [entries, addEntry, deleteEntry, getEntry]);
+  }), [entries, calendarEvents, addEntry, deleteEntry, getEntry]);
 });
