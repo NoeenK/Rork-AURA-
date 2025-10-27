@@ -1,30 +1,38 @@
 import { Tabs } from "expo-router";
-import { Mic, BookHeart, User } from "lucide-react-native";
+import { Mic, Folder, User } from "lucide-react-native";
 import React from "react";
 import { Platform, StyleSheet } from "react-native";
 import { BlurView } from "expo-blur";
 
-import Colors from "@/constants/colors";
+import { AuraColors } from "@/constants/colors";
 
 export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors.light.tabIconSelected,
-        tabBarInactiveTintColor: Colors.light.tabIconDefault,
+        tabBarActiveTintColor: AuraColors.accentOrange,
+        tabBarInactiveTintColor: 'rgba(255, 255, 255, 0.4)',
         headerShown: false,
         tabBarStyle: {
           position: "absolute",
           backgroundColor: Platform.OS === 'web' 
-            ? 'rgba(0, 0, 0, 0.6)' 
+            ? AuraColors.darkCard 
             : 'transparent',
           borderTopWidth: 0,
           elevation: 0,
+          height: 85,
+          paddingTop: 8,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+          marginBottom: 8,
         },
         tabBarBackground: () =>
           Platform.OS !== 'web' ? (
             <BlurView
-              intensity={80}
+              intensity={95}
+              tint="dark"
               style={StyleSheet.absoluteFillObject}
             />
           ) : null,
@@ -33,21 +41,21 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Record",
+          title: "Recordings",
           tabBarIcon: ({ color, size }) => <Mic color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="memories"
         options={{
-          title: "Memories",
-          tabBarIcon: ({ color, size }) => <BookHeart color={color} size={size} />,
+          title: "Folders",
+          tabBarIcon: ({ color, size }) => <Folder color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profile",
+          title: "Settings",
           tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
         }}
       />

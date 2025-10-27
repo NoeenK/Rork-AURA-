@@ -1,12 +1,24 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Mic, Square, Loader2 } from 'lucide-react-native';
+import { Mic, Play, MoreVertical, Upload, Clock, XCircle, Smartphone, AlertCircle } from 'lucide-react-native';
 import { Audio } from 'expo-av';
-import GradientBackground from '@/components/GradientBackground';
 import { AuraColors } from '@/constants/colors';
+import * as Haptics from 'expo-haptics';
 
 type RecordingState = 'idle' | 'recording' | 'processing';
+
+type RecordingStatus = 'uploading' | 'transcribing' | 'failed' | 'completed' | 'on-device';
+
+interface RecordingItem {
+  id: string;
+  title: string;
+  subtitle?: string;
+  duration: string;
+  date: string;
+  status: RecordingStatus;
+  waveformData?: number[];
+}
 
 export default function RecordScreen() {
   const insets = useSafeAreaInsets();
@@ -14,6 +26,51 @@ export default function RecordScreen() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [transcript, setTranscript] = useState<string>('');
   const [permissionGranted, setPermissionGranted] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'recordings' | 'folders'>('recordings');
+  
+  const [recordings, setRecordings] = useState<RecordingItem[]>([
+    {
+      id: '1',
+      title: 'Recordings',
+      subtitle: 'Uploading',
+      duration: '00:42',
+      date: 'Oct7 - 12:21',
+      status: 'uploading',
+    },
+    {
+      id: '2',
+      title: 'Class',
+      subtitle: 'Transcribing',
+      duration: '00:42',
+      date: 'Oct7 - 12:21',
+      status: 'transcribing',
+    },
+    {
+      id: '3',
+      title: 'Math',
+      subtitle: 'Failed',
+      duration: '00:42',
+      date: 'Oct7 - 12:21',
+      status: 'failed',
+    },
+    {
+      id: '4',
+      title: 'University',
+      subtitle: 'On Device Mode',
+      duration: '00:42',
+      date: 'Oct7 - 12:21',
+      status: 'on-device',
+    },
+    {
+      id: '5',
+      title: 'Mechanics',
+      subtitle: 'Mechanics of Hammer and String',
+      duration: '00:42',
+      date: 'Oct7 - 12:21',
+      status: 'completed',
+    },
+  ]);
   
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const waveAnims = useRef(
@@ -216,6 +273,9 @@ export default function RecordScreen() {
   };
 
   const handleRecordPress = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
     if (recordingState === 'idle') {
       startRecording();
     } else if (recordingState === 'recording') {
@@ -223,201 +283,286 @@ export default function RecordScreen() {
     }
   };
 
+  const getStatusIcon = (status: RecordingStatus) => {
+    switch (status) {
+      case 'uploading':
+        return <Upload color={AuraColors.statusUploading} size={16} />;
+      case 'transcribing':
+        return <Clock color={AuraColors.statusTranscribing} size={16} />;
+      case 'failed':
+        return <XCircle color={AuraColors.statusFailed} size={16} />;
+      case 'on-device':
+        return <Smartphone color={AuraColors.statusOnDevice} size={16} />;
+      case 'completed':
+        return <Play color={AuraColors.white} size={16} />;
+    }
+  };
+
+  const getStatusColor = (status: RecordingStatus) => {
+    switch (status) {
+      case 'uploading':
+        return AuraColors.statusUploading;
+      case 'transcribing':
+        return AuraColors.statusTranscribing;
+      case 'failed':
+        return AuraColors.statusFailed;
+      case 'on-device':
+        return AuraColors.statusOnDevice;
+      case 'completed':
+        return AuraColors.white;
+    }
+  };
+
   return (
-    <GradientBackground>
-      <View style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
-          <Text style={styles.title}>AURA</Text>
-          <Text style={styles.subtitle}>Record. Reflect. Remember.</Text>
-        </View>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Voix</Text>
+        <TouchableOpacity style={styles.settingsButton}>
+          <AlertCircle color={AuraColors.accentOrange} size={24} />
+        </TouchableOpacity>
+      </View>
 
-        <View style={styles.content}>
-          {recordingState === 'recording' && (
-            <View style={styles.waveformContainer}>
-              {waveAnims.map((anim, index) => (
-                <Animated.View
-                  key={index}
-                  style={[
-                    styles.waveBar,
-                    {
-                      height: anim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [20, 120],
-                      }),
-                    },
-                  ]}
-                />
-              ))}
-            </View>
-          )}
-
-          {transcript !== '' && recordingState === 'idle' && (
-            <View style={styles.transcriptContainer}>
-              <Text style={styles.transcriptLabel}>Transcript</Text>
-              <Text style={styles.transcriptText}>{transcript}</Text>
-            </View>
-          )}
-
-          {recordingState === 'idle' && transcript === '' && (
-            <View style={styles.promptContainer}>
-              <Text style={styles.promptText}>Tap the mic to start recording</Text>
-              <Text style={styles.promptSubtext}>
-                Your voice will be transcribed in real-time
-              </Text>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.recordButtonContainer}>
-          {recordingState === 'processing' ? (
-            <View style={styles.processingButton}>
-              <Loader2 color={AuraColors.white} size={40} />
-              <Text style={styles.processingText}>Processing...</Text>
-            </View>
-          ) : (
-            <TouchableOpacity
-              onPress={handleRecordPress}
-              style={styles.recordButtonTouchable}
-              disabled={!permissionGranted}
-            >
-              <Animated.View
-                style={[
-                  styles.recordButton,
-                  recordingState === 'recording' && styles.recordButtonActive,
-                  { transform: [{ scale: recordingState === 'recording' ? pulseAnim : 1 }] },
-                ]}
-              >
-                {recordingState === 'recording' ? (
-                  <Square color={AuraColors.white} size={40} fill={AuraColors.white} />
-                ) : (
-                  <Mic color={AuraColors.white} size={40} />
-                )}
-              </Animated.View>
-            </TouchableOpacity>
-          )}
-          
-          {recordingState === 'recording' && (
-            <Text style={styles.recordingText}>Recording...</Text>
-          )}
+      <View style={styles.searchContainer}>
+        <View style={styles.searchBar}>
+          <Text style={styles.searchIcon}>🔍</Text>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search"
+            placeholderTextColor="rgba(255, 255, 255, 0.4)"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          <TouchableOpacity>
+            <Mic color="rgba(255, 255, 255, 0.4)" size={20} />
+          </TouchableOpacity>
         </View>
       </View>
-    </GradientBackground>
+
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'recordings' && styles.tabActive]}
+          onPress={() => setActiveTab('recordings')}
+        >
+          <Text style={[styles.tabText, activeTab === 'recordings' && styles.tabTextActive]}>
+            Recordings
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'folders' && styles.tabActive]}
+          onPress={() => setActiveTab('folders')}
+        >
+          <Text style={[styles.tabText, activeTab === 'folders' && styles.tabTextActive]}>
+            Folders
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tab}>
+          <Text style={styles.tabText}>Import Video</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tab}>
+          <Text style={styles.tabText}>Import Voice</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        {recordings.map((item, index) => (
+          <TouchableOpacity
+            key={item.id}
+            style={styles.recordingItem}
+            activeOpacity={0.7}
+            onPress={() => {
+              if (Platform.OS !== 'web') {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }
+            }}
+          >
+            <View style={styles.recordingIcon}>
+              {getStatusIcon(item.status)}
+            </View>
+            
+            <View style={styles.recordingContent}>
+              <View style={styles.recordingHeader}>
+                <Text style={styles.recordingTitle}>{item.title}</Text>
+                <Text style={styles.recordingDuration}>{item.duration}</Text>
+              </View>
+              <View style={styles.recordingFooter}>
+                <View style={styles.recordingStatus}>
+                  {item.subtitle && (
+                    <Text
+                      style={[
+                        styles.recordingSubtitle,
+                        { color: getStatusColor(item.status) },
+                      ]}
+                    >
+                      {item.subtitle}
+                    </Text>
+                  )}
+                </View>
+                <Text style={styles.recordingDate}>{item.date}</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity style={styles.moreButton}>
+              <MoreVertical color="rgba(255, 255, 255, 0.4)" size={20} />
+            </TouchableOpacity>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      <TouchableOpacity
+        style={[styles.fab, { bottom: insets.bottom + 90 }]}
+        onPress={handleRecordPress}
+        activeOpacity={0.8}
+      >
+        <Mic color={AuraColors.white} size={28} />
+      </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: AuraColors.darkBg,
   },
   header: {
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
   title: {
-    fontSize: 42,
-    fontWeight: '800' as const,
+    fontSize: 28,
+    fontWeight: '700' as const,
     color: AuraColors.white,
-    marginBottom: 4,
-    letterSpacing: 2,
+    letterSpacing: 0.5,
   },
-  subtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontWeight: '500' as const,
+  settingsButton: {
+    padding: 8,
   },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
+  searchContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 16,
   },
-  waveformContainer: {
+  searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    height: 150,
-    gap: 4,
+    backgroundColor: AuraColors.darkCard,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
   },
-  waveBar: {
-    width: 4,
-    backgroundColor: AuraColors.white,
-    borderRadius: 2,
-    opacity: 0.8,
-  },
-  transcriptContainer: {
-    width: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 20,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  transcriptLabel: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  transcriptText: {
-    fontSize: 18,
-    color: AuraColors.white,
-    lineHeight: 28,
-  },
-  promptContainer: {
-    alignItems: 'center',
-  },
-  promptText: {
-    fontSize: 24,
-    fontWeight: '600' as const,
-    color: AuraColors.white,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  promptSubtext: {
+  searchIcon: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.6)',
-    textAlign: 'center',
   },
-  recordButtonContainer: {
+  searchInput: {
+    flex: 1,
+    color: AuraColors.white,
+    fontSize: 16,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    gap: 12,
+  },
+  tab: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  tabActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: AuraColors.white,
+  },
+  tabText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontWeight: '500' as const,
+  },
+  tabTextActive: {
+    color: AuraColors.white,
+    fontWeight: '600' as const,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+  },
+  recordingItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingBottom: 100,
+    backgroundColor: AuraColors.darkCard,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    gap: 12,
   },
-  recordButtonTouchable: {
+  recordingIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recordingContent: {
+    flex: 1,
+  },
+  recordingHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  recordingTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: AuraColors.white,
+  },
+  recordingDuration: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontWeight: '500' as const,
+  },
+  recordingFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  recordButton: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
+  recordingStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  recordingSubtitle: {
+    fontSize: 13,
+    fontWeight: '500' as const,
+  },
+  recordingDate: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.4)',
+  },
+  moreButton: {
+    padding: 8,
+  },
+  fab: {
+    position: 'absolute',
+    right: 24,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: AuraColors.accentOrange,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: AuraColors.accentOrange,
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  recordButtonActive: {
-    backgroundColor: '#FF3366',
-  },
-  recordingText: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: AuraColors.white,
-    marginTop: 16,
-  },
-  processingButton: {
-    alignItems: 'center',
-    gap: 12,
-  },
-  processingText: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: AuraColors.white,
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 8,
   },
 });

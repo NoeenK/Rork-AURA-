@@ -30,7 +30,8 @@
       },
       "package": "app.rork.aura_memory_recorder",
       "permissions": [
-        "RECORD_AUDIO"
+        "RECORD_AUDIO",
+        "android.permission.VIBRATE"
       ]
     },
     "web": {
