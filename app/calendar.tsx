@@ -232,6 +232,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 20,
     padding: 16,
     backdropFilter: 'blur(10px)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 140, 66, 0.3)',
+    shadowColor: AuraColors.accentOrange,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
   },
   monthHeader: {
     flexDirection: 'row',
@@ -279,7 +286,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     position: 'relative',
   },
   today: {
-    backgroundColor: colors.accent,
+    backgroundColor: AuraColors.accentOrange,
   },
   selected: {
     backgroundColor: AuraColors.accentOrange,
