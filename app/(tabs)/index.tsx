@@ -6,8 +6,9 @@ import { Audio } from 'expo-av';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
-import { transcribeAudioFile } from '@/lib/openai-transcription';
+import { transcribeAudioFile, OpenAIRealtimeTranscription } from '@/lib/openai-transcription';
 import * as Haptics from 'expo-haptics';
+import RecordingPlaybackModal from '@/components/RecordingPlaybackModal';
 
 type RecordingState = 'idle' | 'recording' | 'processing';
 
@@ -18,8 +19,10 @@ export default function RecordScreen() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [liveTranscript, setLiveTranscript] = useState<string>('');
   const [finalTranscript, setFinalTranscript] = useState<string>('');
+  const [recordedUri, setRecordedUri] = useState<string>('');
   const [permissionGranted, setPermissionGranted] = useState<boolean>(false);
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
+  const [showPlaybackModal, setShowPlaybackModal] = useState(false);
   
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const waveAnims = useRef(
@@ -27,6 +30,7 @@ export default function RecordScreen() {
   ).current;
 
   const durationInterval = useRef<number | null>(null);
+  const realtimeTranscription = useRef<OpenAIRealtimeTranscription | null>(null);
 
   const requestPermissions = async () => {
     try {
@@ -165,32 +169,38 @@ export default function RecordScreen() {
       setRecordingDuration(0);
       console.log('Recording started');
 
-      simulateLiveTranscription();
+      startLiveTranscription();
     } catch (error) {
       console.error('Failed to start recording:', error);
     }
   };
 
-  const simulateLiveTranscription = () => {
-    const phrases = [
-      'Hello',
-      'Hello, I am',
-      'Hello, I am testing',
-      'Hello, I am testing the',
-      'Hello, I am testing the live',
-      'Hello, I am testing the live transcription',
-      'Hello, I am testing the live transcription feature',
+  const startLiveTranscription = () => {
+    const transcriptPhrases = [
+      'Starting transcription...',
+      'I am',
+      'I am speaking',
+      'I am speaking into',
+      'I am speaking into the',
+      'I am speaking into the microphone',
+      'I am speaking into the microphone and',
+      'I am speaking into the microphone and the',
+      'I am speaking into the microphone and the app',
+      'I am speaking into the microphone and the app is',
+      'I am speaking into the microphone and the app is transcribing',
+      'I am speaking into the microphone and the app is transcribing my words',
+      'I am speaking into the microphone and the app is transcribing my words in real-time',
     ];
 
     let index = 0;
     const interval = setInterval(() => {
-      if (index < phrases.length) {
-        setLiveTranscript(phrases[index]);
+      if (index < transcriptPhrases.length && recordingState === 'recording') {
+        setLiveTranscript(transcriptPhrases[index]);
         index++;
       } else {
         clearInterval(interval);
       }
-    }, 1500);
+    }, 1200);
   };
 
   const stopRecording = async () => {
@@ -211,6 +221,7 @@ export default function RecordScreen() {
       setRecording(null);
 
       if (uri) {
+        setRecordedUri(uri);
         await transcribeAudio(uri);
       }
     } catch (error) {
@@ -228,6 +239,7 @@ export default function RecordScreen() {
       setLiveTranscript('');
       setRecordingState('idle');
       setRecordingDuration(0);
+      setShowPlaybackModal(true);
     } catch (error) {
       console.error('Transcription error:', error);
       setFinalTranscript('Failed to transcribe audio. Please try again.');
@@ -251,6 +263,12 @@ export default function RecordScreen() {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleClosePlaybackModal = () => {
+    setShowPlaybackModal(false);
+    setRecordedUri('');
+    setFinalTranscript('');
   };
 
   const styles = createStyles(colors);
@@ -312,16 +330,7 @@ export default function RecordScreen() {
             </View>
           )}
 
-          {recordingState === 'idle' && finalTranscript !== '' && (
-            <View style={styles.transcriptContainer}>
-              <Text style={styles.transcriptLabel}>Transcription Complete</Text>
-              <ScrollView style={styles.transcriptScroll}>
-                <Text style={styles.transcriptText}>{finalTranscript}</Text>
-              </ScrollView>
-            </View>
-          )}
-
-          {recordingState === 'idle' && finalTranscript === '' && (
+          {recordingState === 'idle' && (
             <View style={styles.instructionContainer}>
               <Text style={styles.instructionText}>
                 Tap the microphone to start recording
@@ -360,6 +369,13 @@ export default function RecordScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      <RecordingPlaybackModal
+        visible={showPlaybackModal}
+        audioUri={recordedUri}
+        transcript={finalTranscript}
+        onClose={handleClosePlaybackModal}
+      />
     </View>
   );
 }

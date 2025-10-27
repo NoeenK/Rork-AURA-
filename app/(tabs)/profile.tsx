@@ -1,21 +1,37 @@
 import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Platform, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Sun, Moon, ChevronRight } from 'lucide-react-native';
+import { Sun, Moon, ChevronRight, LogOut } from 'lucide-react-native';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { theme, setTheme, colors } = useTheme();
+  const { user, signOut } = useAuth();
   
   const handleThemeChange = (newTheme: 'light' | 'dark') => {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     setTheme(newTheme);
+  };
+
+  const handleSignOut = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign Out', style: 'destructive', onPress: signOut },
+      ]
+    );
   };
 
   const styles = createStyles(colors);
@@ -31,7 +47,15 @@ export default function ProfileScreen() {
       
       <View style={[styles.content, { paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <Text style={styles.title}>Account</Text>
+          <Text style={styles.title}>{user?.firstName || 'My'} Account</Text>
+        </View>
+
+        <View style={styles.profileCard}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{user?.firstName?.charAt(0) || 'U'}</Text>
+          </View>
+          <Text style={styles.userName}>{user?.name || 'User'}</Text>
+          <Text style={styles.userEmail}>{user?.email || ''}</Text>
         </View>
       
         <ScrollView 
@@ -114,6 +138,15 @@ export default function ProfileScreen() {
               <ChevronRight color={colors.textSecondary} size={20} />
             </TouchableOpacity>
           </View>
+
+          <TouchableOpacity
+            style={styles.signOutButton}
+            onPress={handleSignOut}
+            activeOpacity={0.8}
+          >
+            <LogOut color={AuraColors.white} size={20} />
+            <Text style={styles.signOutText}>Sign Out</Text>
+          </TouchableOpacity>
         </ScrollView>
       </View>
     </View>
@@ -213,5 +246,64 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '500' as const,
     color: colors.text,
+  },
+  profileCard: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    marginHorizontal: 20,
+    marginBottom: 24,
+    backgroundColor: colors.card,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: AuraColors.accentOrange,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  avatarText: {
+    fontSize: 32,
+    fontWeight: '700' as const,
+    color: AuraColors.white,
+  },
+  userName: {
+    fontSize: 22,
+    fontWeight: '700' as const,
+    color: colors.text,
+    marginBottom: 4,
+  },
+  userEmail: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500' as const,
+  },
+  signOutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    backgroundColor: '#FF4757',
+    marginHorizontal: 20,
+    marginTop: 24,
+    paddingVertical: 16,
+    borderRadius: 14,
+    shadowColor: '#FF4757',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  signOutText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: AuraColors.white,
   },
 });

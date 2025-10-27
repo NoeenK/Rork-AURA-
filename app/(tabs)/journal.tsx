@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Platform } from '
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Plus, Calendar, Search } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { AuraColors } from '@/constants/colors';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,6 +19,7 @@ interface JournalEntry {
 export default function JournalScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const { user } = useAuth();
   
   const [entries] = useState<JournalEntry[]>([
     {
@@ -62,7 +64,7 @@ export default function JournalScreen() {
       
       <View style={[styles.content, { paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <Text style={styles.title}>Journal</Text>
+          <Text style={styles.title}>{user?.firstName || 'My'} Journal</Text>
           <View style={styles.headerButtons}>
             <TouchableOpacity style={styles.iconButton} onPress={handlePress}>
               <Search color={colors.text} size={24} />
