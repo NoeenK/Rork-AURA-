@@ -29,19 +29,14 @@ export default function CalendarScreen() {
   }, [currentDate]);
 
   const eventsMap = useMemo(() => {
-    const map = new Map<string, number>();
-    entries.forEach(entry => {
-      const date = new Date(entry.timestamp);
-      const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-      map.set(dateKey, (map.get(dateKey) || 0) + 1);
-    });
+    const map = new Map<string, boolean>();
     
     calendarEvents.forEach(event => {
       try {
         const date = new Date(event.date);
         if (!isNaN(date.getTime())) {
           const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-          map.set(dateKey, (map.get(dateKey) || 0) + 1);
+          map.set(dateKey, true);
         }
       } catch (error) {
         console.error('Error parsing event date:', error);
@@ -49,11 +44,11 @@ export default function CalendarScreen() {
     });
     
     return map;
-  }, [entries, calendarEvents]);
+  }, [calendarEvents]);
 
-  const getEventsForDate = (day: number) => {
+  const hasEventsForDate = (day: number) => {
     const dateKey = `${daysInMonth.year}-${daysInMonth.month}-${day}`;
-    return eventsMap.get(dateKey) || 0;
+    return eventsMap.get(dateKey) || false;
   };
 
   const goToPreviousMonth = () => {
@@ -84,7 +79,7 @@ export default function CalendarScreen() {
     }
 
     for (let day = 1; day <= daysCount; day++) {
-      const eventsCount = getEventsForDate(day);
+      const hasEvents = hasEventsForDate(day);
       const isToday = 
         day === new Date().getDate() &&
         currentDate.getMonth() === new Date().getMonth() &&
@@ -103,10 +98,8 @@ export default function CalendarScreen() {
         >
           <View style={[styles.dayContent, isToday && styles.today, isSelected && styles.selected]}>
             <Text style={[styles.dayText, (isToday || isSelected) && styles.todayText]}>{day}</Text>
-            {eventsCount > 0 && (
-              <View style={styles.eventDot}>
-                <Text style={styles.eventCount}>{eventsCount}</Text>
-              </View>
+            {hasEvents && (
+              <View style={styles.eventDotIndicator} />
             )}
           </View>
         </TouchableOpacity>
@@ -118,12 +111,6 @@ export default function CalendarScreen() {
 
   const selectedDateEvents = useMemo(() => {
     const targetDate = selectedDate || new Date();
-    const journalEvents = entries.filter(entry => {
-      const entryDate = new Date(entry.timestamp);
-      return entryDate.getDate() === targetDate.getDate() &&
-        entryDate.getMonth() === targetDate.getMonth() &&
-        entryDate.getFullYear() === targetDate.getFullYear();
-    });
     
     const extractedEvents = calendarEvents.filter(event => {
       try {
@@ -136,8 +123,8 @@ export default function CalendarScreen() {
       }
     });
     
-    return { journalEvents, extractedEvents };
-  }, [entries, calendarEvents, selectedDate]);
+    return { extractedEvents };
+  }, [calendarEvents, selectedDate]);
 
   return (
     <View style={styles.container}>
@@ -187,51 +174,26 @@ export default function CalendarScreen() {
             {selectedDate ? `Events on ${selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}` : "Today's Events"}
           </Text>
           
-          {selectedDateEvents.extractedEvents.length > 0 && (
+          {selectedDateEvents.extractedEvents.length > 0 ? (
             <View style={styles.eventSection}>
-              <Text style={styles.eventSectionTitle}>Calendar Events</Text>
               {selectedDateEvents.extractedEvents.map((event, idx) => (
-                <View key={`extracted-${idx}`} style={styles.eventCard}>
-                  <View style={styles.eventCardHeader}>
+                <LinearGradient
+                  key={`extracted-${idx}`}
+                  colors={['#FF8C42', '#FFA500']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.eventCard}
+                >
+                  <View style={styles.eventCardContent}>
                     <Text style={styles.eventTitle} numberOfLines={1}>{event.title}</Text>
                     {event.time && (
                       <Text style={styles.eventTime}>{event.time}</Text>
                     )}
                   </View>
-                  <Text style={styles.eventDescription} numberOfLines={2}>{event.description}</Text>
-                  {event.participants && event.participants.length > 0 && (
-                    <Text style={styles.eventParticipants}>With: {event.participants.join(', ')}</Text>
-                  )}
-                </View>
+                </LinearGradient>
               ))}
             </View>
-          )}
-          
-          {selectedDateEvents.journalEvents.length > 0 && (
-            <View style={styles.eventSection}>
-              <Text style={styles.eventSectionTitle}>Journal Entries</Text>
-              {selectedDateEvents.journalEvents.map(event => (
-                <TouchableOpacity
-                  key={event.id}
-                  style={styles.eventCard}
-                  onPress={() => router.push('/journal')}
-                >
-                  <View style={styles.eventCardHeader}>
-                    <Text style={styles.eventTitle} numberOfLines={1}>{event.title}</Text>
-                    <Text style={styles.eventTime}>
-                      {new Date(event.timestamp).toLocaleTimeString('en-US', {
-                        hour: 'numeric',
-                        minute: '2-digit',
-                        hour12: true
-                      })}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-          
-          {selectedDateEvents.extractedEvents.length === 0 && selectedDateEvents.journalEvents.length === 0 && (
+          ) : (
             <Text style={styles.noEventsText}>No events for this date</Text>
           )}
         </View>
@@ -331,20 +293,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700' as const,
   },
-  eventDot: {
+  eventDotIndicator: {
     position: 'absolute',
-    bottom: 2,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  eventCount: {
-    fontSize: 10,
-    fontWeight: '700' as const,
-    color: '#FFFFFF',
+    bottom: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: AuraColors.accentOrange,
   },
   todaySection: {
     margin: 16,
@@ -361,20 +316,31 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 16,
   },
   eventCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     marginBottom: 12,
+    shadowColor: AuraColors.accentOrange,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  eventCardContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   eventTitle: {
     fontSize: 16,
-    fontWeight: '600' as const,
-    color: colors.text,
-    marginBottom: 4,
+    fontWeight: '700' as const,
+    color: AuraColors.white,
+    flex: 1,
   },
   eventTime: {
     fontSize: 14,
-    color: colors.textSecondary,
+    fontWeight: '600' as const,
+    color: AuraColors.white,
+    marginLeft: 12,
   },
   noEventsText: {
     fontSize: 16,
@@ -392,21 +358,5 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 12,
     opacity: 0.7,
   },
-  eventCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  eventDescription: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: 8,
-    lineHeight: 20,
-  },
-  eventParticipants: {
-    fontSize: 13,
-    color: AuraColors.accentOrange,
-    marginTop: 8,
-    fontWeight: '600' as const,
-  },
+
 });

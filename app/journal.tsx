@@ -1,25 +1,109 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Platform, Modal } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Platform, Modal, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, Play } from 'lucide-react-native';
+import { X, Play, Pause, RotateCcw, RotateCw, MoreVertical, Download, FileText } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useJournal } from '@/contexts/JournalContext';
 import { AuraColors } from '@/constants/colors';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import RecordingPlaybackModal from '@/components/RecordingPlaybackModal';
+import { Audio } from 'expo-av';
 
 export default function JournalScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { entries } = useJournal();
-  const [selectedEntry, setSelectedEntry] = useState<{
-    audioUri: string;
-    transcript: string;
-  } | null>(null);
   const [selectedFullEntry, setSelectedFullEntry] = useState<any | null>(null);
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [position, setPosition] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showExportOptionsMenu, setShowExportOptionsMenu] = useState(false);
+  const waveAnims = useRef(
+    Array.from({ length: 40 }, () => new Animated.Value(0.3))
+  ).current;
   
+  useEffect(() => {
+    if (selectedFullEntry && selectedFullEntry.audioUri) {
+      loadSound();
+    }
+    return () => {
+      if (sound) {
+        sound.unloadAsync();
+      }
+    };
+  }, [selectedFullEntry]);
+
+  useEffect(() => {
+    if (isPlaying) {
+      startWaveAnimation();
+    } else {
+      stopWaveAnimation();
+    }
+  }, [isPlaying]);
+
+  const loadSound = async () => {
+    try {
+      if (sound) {
+        await sound.unloadAsync();
+      }
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        { uri: selectedFullEntry.audioUri },
+        { shouldPlay: false },
+        onPlaybackStatusUpdate
+      );
+      setSound(newSound);
+    } catch (error) {
+      console.error('Error loading sound:', error);
+    }
+  };
+
+  const onPlaybackStatusUpdate = (status: any) => {
+    if (status.isLoaded) {
+      setPosition(status.positionMillis);
+      setDuration(status.durationMillis);
+      setIsPlaying(status.isPlaying);
+
+      if (status.didJustFinish) {
+        setIsPlaying(false);
+        setPosition(0);
+        sound?.setPositionAsync(0);
+      }
+    }
+  };
+
+  const startWaveAnimation = () => {
+    const animations = waveAnims.map((anim) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(anim, {
+            toValue: 0.2 + Math.random() * 0.8,
+            duration: 200 + Math.random() * 300,
+            useNativeDriver: false,
+          }),
+          Animated.timing(anim, {
+            toValue: 0.2,
+            duration: 200 + Math.random() * 300,
+            useNativeDriver: false,
+          }),
+        ])
+      )
+    );
+
+    animations.forEach((animation, index) => {
+      setTimeout(() => animation.start(), index * 30);
+    });
+  };
+
+  const stopWaveAnimation = () => {
+    waveAnims.forEach((anim) => {
+      anim.stopAnimation();
+      anim.setValue(0.3);
+    });
+  };
+
   const handleEntryPress = (entry: any) => {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -27,8 +111,93 @@ export default function JournalScreen() {
     setSelectedFullEntry(entry);
   };
 
-  const handleClosePlayback = () => {
-    setSelectedEntry(null);
+  const handlePlayPause = async () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    if (!sound) return;
+
+    if (isPlaying) {
+      await sound.pauseAsync();
+    } else {
+      await sound.playAsync();
+    }
+  };
+
+  const handleRewind = async () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    if (!sound) return;
+    const newPosition = Math.max(0, position - 15000);
+    await sound.setPositionAsync(newPosition);
+  };
+
+  const handleForward = async () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    if (!sound) return;
+    const newPosition = Math.min(duration, position + 15000);
+    await sound.setPositionAsync(newPosition);
+  };
+
+  const formatTime = (millis: number): string => {
+    const totalSeconds = Math.floor(millis / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const handleExportAudio = () => {
+    console.log('Exporting audio...');
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    setShowExportMenu(false);
+  };
+
+  const handleExportSummary = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    setShowExportMenu(false);
+    setShowExportOptionsMenu(true);
+  };
+
+  const handleExportAsWord = () => {
+    console.log('Exporting as Word doc...');
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    setShowExportOptionsMenu(false);
+  };
+
+  const handleExportAsPDF = () => {
+    console.log('Exporting as PDF...');
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    setShowExportOptionsMenu(false);
+  };
+
+  const handleExportAsText = () => {
+    console.log('Exporting as Text file...');
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    setShowExportOptionsMenu(false);
+  };
+
+  const getCurrentWord = () => {
+    if (!selectedFullEntry?.transcript) return -1;
+    const words = selectedFullEntry.transcript.split(' ');
+    const secondsPerWord = duration / words.length / 1000;
+    const currentSecond = position / 1000;
+    return Math.floor(currentSecond / secondsPerWord);
   };
 
   const styles = createStyles(colors);
@@ -114,9 +283,23 @@ export default function JournalScreen() {
             
             <View style={[styles.modalHeader, { paddingTop: insets.top + 16 }]}>
               <Text style={styles.modalTitle}>Journal Entry</Text>
-              <TouchableOpacity onPress={() => setSelectedFullEntry(null)} style={styles.closeButton}>
-                <X color={colors.text} size={28} />
-              </TouchableOpacity>
+              <View style={styles.headerButtons}>
+                <TouchableOpacity onPress={() => setShowExportMenu(true)} style={styles.menuButton}>
+                  <MoreVertical color={colors.text} size={24} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => {
+                  if (sound) {
+                    sound.stopAsync().then(() => sound.unloadAsync());
+                    setSound(null);
+                  }
+                  setIsPlaying(false);
+                  setPosition(0);
+                  setDuration(0);
+                  setSelectedFullEntry(null);
+                }} style={styles.closeButton}>
+                  <X color={colors.text} size={28} />
+                </TouchableOpacity>
+              </View>
             </View>
             
             <ScrollView 
@@ -126,30 +309,11 @@ export default function JournalScreen() {
               <View style={styles.modalEntryCard}>
                 <View style={styles.entryHeader}>
                   <View style={styles.entryTitleRow}>
-                    <Play color={AuraColors.accentOrange} size={20} fill={AuraColors.accentOrange} />
                     <Text style={styles.entryTitle} numberOfLines={2}>
                       {selectedFullEntry.title}
                     </Text>
                   </View>
-                  <Text style={styles.entryDuration}>
-                    {Math.floor(selectedFullEntry.duration / 60)}:{(selectedFullEntry.duration % 60).toString().padStart(2, '0')}
-                  </Text>
                 </View>
-                
-                <TouchableOpacity
-                  style={styles.playAudioButton}
-                  onPress={() => {
-                    setSelectedEntry({
-                      audioUri: selectedFullEntry.audioUri,
-                      transcript: selectedFullEntry.transcript,
-                    });
-                    setSelectedFullEntry(null);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Play color={AuraColors.white} size={20} fill={AuraColors.white} />
-                  <Text style={styles.playAudioButtonText}>Play Recording</Text>
-                </TouchableOpacity>
                 
                 {selectedFullEntry.auraSummary && (
                   <View style={styles.auraSummarySection}>
@@ -175,8 +339,96 @@ export default function JournalScreen() {
                 )}
                 
                 <View style={styles.transcriptSection}>
-                  <Text style={styles.transcriptSectionTitle}>Full Transcript</Text>
-                  <Text style={styles.fullTranscriptText}>{selectedFullEntry.transcript}</Text>
+                  <View style={styles.transcriptTabContainer}>
+                    <View style={styles.transcriptTab}>
+                      <Text style={styles.transcriptTabText}>Transcription</Text>
+                      <View style={styles.transcriptTabUnderline} />
+                    </View>
+                  </View>
+                  <View style={styles.transcriptContent}>
+                    <Text style={styles.fullTranscriptText}>
+                      {selectedFullEntry.transcript.split(' ').map((word: string, idx: number) => {
+                        const isCurrentWord = isPlaying && idx === getCurrentWord();
+                        return (
+                          <Text
+                            key={idx}
+                            style={[
+                              styles.transcriptWord,
+                              isCurrentWord && styles.highlightedWord,
+                            ]}
+                          >
+                            {word}{idx < selectedFullEntry.transcript.split(' ').length - 1 ? ' ' : ''}
+                          </Text>
+                        );
+                      })}
+                    </Text>
+                  </View>
+                </View>
+                
+                <View style={styles.audioPlayerSection}>
+                  <View style={styles.waveformContainer}>
+                    {waveAnims.map((anim, index) => (
+                      <Animated.View
+                        key={index}
+                        style={[
+                          styles.waveBar,
+                          {
+                            height: anim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [8, 50],
+                            }),
+                            backgroundColor: isPlaying ? AuraColors.accentOrange : '#FFB366',
+                            opacity: isPlaying ? 0.8 : 0.4,
+                          },
+                        ]}
+                      />
+                    ))}
+                  </View>
+                  
+                  <View style={styles.timeContainer}>
+                    <Text style={styles.timeText}>{formatTime(position)}</Text>
+                    <Text style={styles.playbackSpeed}>x1.5</Text>
+                    <Text style={styles.timeText}>{formatTime(duration)}</Text>
+                  </View>
+                  
+                  <View style={styles.playerControls}>
+                    <TouchableOpacity
+                      style={styles.controlButton}
+                      onPress={handleRewind}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.controlIconContainer}>
+                        <RotateCcw color={colors.text} size={24} />
+                        <Text style={styles.controlLabel}>15</Text>
+                      </View>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.playButtonLarge}
+                      onPress={handlePlayPause}
+                      activeOpacity={0.8}
+                    >
+                      {isPlaying ? (
+                        <View style={styles.pauseIcon}>
+                          <View style={styles.pauseBar} />
+                          <View style={styles.pauseBar} />
+                        </View>
+                      ) : (
+                        <Play color={AuraColors.white} size={32} fill={AuraColors.white} />
+                      )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.controlButton}
+                      onPress={handleForward}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.controlIconContainer}>
+                        <RotateCw color={colors.text} size={24} />
+                        <Text style={styles.controlLabel}>15</Text>
+                      </View>
+                    </TouchableOpacity>
+                  </View>
                 </View>
                 
                 <Text style={styles.entryDate}>{selectedFullEntry.date}</Text>
@@ -186,13 +438,83 @@ export default function JournalScreen() {
         </Modal>
       )}
       
-      {selectedEntry && (
-        <RecordingPlaybackModal
+      {showExportMenu && (
+        <Modal
           visible={true}
-          audioUri={selectedEntry.audioUri}
-          transcript={selectedEntry.transcript}
-          onClose={handleClosePlayback}
-        />
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowExportMenu(false)}
+        >
+          <TouchableOpacity
+            style={styles.exportMenuOverlay}
+            activeOpacity={1}
+            onPress={() => setShowExportMenu(false)}
+          >
+            <View style={styles.exportMenuContainer}>
+              <TouchableOpacity
+                style={styles.exportMenuItem}
+                onPress={handleExportAudio}
+                activeOpacity={0.7}
+              >
+                <Download color={colors.text} size={20} />
+                <Text style={styles.exportMenuText}>Export Audio</Text>
+              </TouchableOpacity>
+              <View style={styles.exportMenuDivider} />
+              <TouchableOpacity
+                style={styles.exportMenuItem}
+                onPress={handleExportSummary}
+                activeOpacity={0.7}
+              >
+                <FileText color={colors.text} size={20} />
+                <Text style={styles.exportMenuText}>Export Summary</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
+
+      {showExportOptionsMenu && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowExportOptionsMenu(false)}
+        >
+          <TouchableOpacity
+            style={styles.exportMenuOverlay}
+            activeOpacity={1}
+            onPress={() => setShowExportOptionsMenu(false)}
+          >
+            <View style={styles.exportMenuContainer}>
+              <TouchableOpacity
+                style={styles.exportMenuItem}
+                onPress={handleExportAsWord}
+                activeOpacity={0.7}
+              >
+                <FileText color={colors.text} size={20} />
+                <Text style={styles.exportMenuText}>Export as Word Doc</Text>
+              </TouchableOpacity>
+              <View style={styles.exportMenuDivider} />
+              <TouchableOpacity
+                style={styles.exportMenuItem}
+                onPress={handleExportAsPDF}
+                activeOpacity={0.7}
+              >
+                <FileText color={colors.text} size={20} />
+                <Text style={styles.exportMenuText}>Export as PDF</Text>
+              </TouchableOpacity>
+              <View style={styles.exportMenuDivider} />
+              <TouchableOpacity
+                style={styles.exportMenuItem}
+                onPress={handleExportAsText}
+                activeOpacity={0.7}
+              >
+                <FileText color={colors.text} size={20} />
+                <Text style={styles.exportMenuText}>Export as Text File</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
       )}
     </View>
   );
@@ -326,10 +648,18 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingBottom: 16,
   },
   modalTitle: {
-    fontSize: 34,
+    fontSize: 28,
     fontWeight: '800' as const,
     color: colors.text,
     letterSpacing: 0.5,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+  },
+  menuButton: {
+    padding: 8,
   },
   modalScrollView: {
     flex: 1,
@@ -449,10 +779,153 @@ const createStyles = (colors: any) => StyleSheet.create({
     letterSpacing: 1,
     opacity: 0.7,
   },
+  transcriptTabContainer: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  transcriptTab: {
+    paddingBottom: 8,
+  },
+  transcriptTabText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: AuraColors.accentOrange,
+    marginBottom: 4,
+  },
+  transcriptTabUnderline: {
+    height: 3,
+    backgroundColor: AuraColors.accentOrange,
+    borderRadius: 1.5,
+  },
+  transcriptContent: {
+    marginBottom: 24,
+  },
   fullTranscriptText: {
-    fontSize: 15,
-    lineHeight: 24,
-    color: colors.textSecondary,
+    fontSize: 16,
+    lineHeight: 26,
+    color: colors.text,
     fontWeight: '400' as const,
+  },
+  transcriptWord: {
+    fontSize: 16,
+    lineHeight: 26,
+    color: colors.text,
+    fontWeight: '400' as const,
+  },
+  highlightedWord: {
+    color: AuraColors.accentOrange,
+    fontWeight: '700' as const,
+  },
+  audioPlayerSection: {
+    marginTop: 24,
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: colors.background,
+  },
+  waveformContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 60,
+    gap: 2,
+    marginBottom: 16,
+  },
+  waveBar: {
+    width: 3,
+    borderRadius: 1.5,
+  },
+  timeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 8,
+  },
+  timeText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: colors.textSecondary,
+  },
+  playbackSpeed: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: colors.text,
+  },
+  playerControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 40,
+    marginBottom: 8,
+  },
+  controlButton: {
+    padding: 12,
+  },
+  controlIconContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  controlLabel: {
+    position: 'absolute',
+    fontSize: 10,
+    fontWeight: '700' as const,
+    color: colors.text,
+  },
+  playButtonLarge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: AuraColors.accentOrange,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: AuraColors.accentOrange,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  pauseIcon: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  pauseBar: {
+    width: 4,
+    height: 24,
+    backgroundColor: AuraColors.white,
+    borderRadius: 2,
+  },
+  exportMenuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  exportMenuContainer: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 8,
+    minWidth: 240,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  exportMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    padding: 16,
+  },
+  exportMenuText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: colors.text,
+  },
+  exportMenuDivider: {
+    height: 1,
+    backgroundColor: colors.background,
+    marginHorizontal: 8,
   },
 });
