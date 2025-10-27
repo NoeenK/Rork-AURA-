@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Platform, Modal, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, Play, Pause, RotateCcw, RotateCw, MoreVertical, Download, FileText } from 'lucide-react-native';
+import { X, Play, Pause, RotateCcw, RotateCw, MoreVertical, Download, FileText, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useJournal } from '@/contexts/JournalContext';
 import { AuraColors } from '@/constants/colors';
@@ -21,6 +21,7 @@ export default function JournalScreen() {
   const [duration, setDuration] = useState(0);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showExportOptionsMenu, setShowExportOptionsMenu] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
   const waveAnims = useRef(
     Array.from({ length: 40 }, () => new Animated.Value(0.3))
   ).current;
@@ -143,6 +144,59 @@ export default function JournalScreen() {
     if (!sound) return;
     const newPosition = Math.min(duration, position + 15000);
     await sound.setPositionAsync(newPosition);
+  };
+
+  const handleSpeedToggle = async () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    if (!sound) return;
+
+    const speeds = [1.0, 1.5, 2.0, 0.5];
+    const currentIndex = speeds.indexOf(playbackSpeed);
+    const nextSpeed = speeds[(currentIndex + 1) % speeds.length];
+    setPlaybackSpeed(nextSpeed);
+
+    try {
+      await sound.setRateAsync(nextSpeed, true);
+    } catch (error) {
+      console.error('Error setting playback speed:', error);
+    }
+  };
+
+  const handlePreviousEntry = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    const currentIndex = entries.findIndex(e => e.id === selectedFullEntry?.id);
+    if (currentIndex < entries.length - 1) {
+      if (sound) {
+        sound.stopAsync().then(() => sound.unloadAsync());
+        setSound(null);
+      }
+      setIsPlaying(false);
+      setPosition(0);
+      setDuration(0);
+      setSelectedFullEntry(entries[currentIndex + 1]);
+    }
+  };
+
+  const handleNextEntry = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    const currentIndex = entries.findIndex(e => e.id === selectedFullEntry?.id);
+    if (currentIndex > 0) {
+      if (sound) {
+        sound.stopAsync().then(() => sound.unloadAsync());
+        setSound(null);
+      }
+      setIsPlaying(false);
+      setPosition(0);
+      setDuration(0);
+      setSelectedFullEntry(entries[currentIndex - 1]);
+    }
   };
 
   const formatTime = (millis: number): string => {
@@ -304,9 +358,11 @@ export default function JournalScreen() {
             
             <ScrollView 
               style={styles.modalScrollView}
-              contentContainerStyle={[styles.modalContent, { paddingBottom: insets.bottom + 40 }]}
+              contentContainerStyle={[styles.modalContent, { paddingBottom: insets.bottom + 180 }]}
             >
               <View style={styles.modalEntryCard}>
+                <Text style={styles.entryDateTop}>{selectedFullEntry.date}</Text>
+                
                 <View style={styles.entryHeader}>
                   <View style={styles.entryTitleRow}>
                     <Text style={styles.entryTitle} numberOfLines={2}>
@@ -364,76 +420,94 @@ export default function JournalScreen() {
                     </Text>
                   </View>
                 </View>
-                
-                <View style={styles.audioPlayerSection}>
-                  <View style={styles.waveformContainer}>
-                    {waveAnims.map((anim, index) => (
-                      <Animated.View
-                        key={index}
-                        style={[
-                          styles.waveBar,
-                          {
-                            height: anim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [8, 50],
-                            }),
-                            backgroundColor: isPlaying ? AuraColors.accentOrange : '#FFB366',
-                            opacity: isPlaying ? 0.8 : 0.4,
-                          },
-                        ]}
-                      />
-                    ))}
-                  </View>
-                  
-                  <View style={styles.timeContainer}>
-                    <Text style={styles.timeText}>{formatTime(position)}</Text>
-                    <Text style={styles.playbackSpeed}>x1.5</Text>
-                    <Text style={styles.timeText}>{formatTime(duration)}</Text>
-                  </View>
-                  
-                  <View style={styles.playerControls}>
-                    <TouchableOpacity
-                      style={styles.controlButton}
-                      onPress={handleRewind}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.controlIconContainer}>
-                        <RotateCcw color={colors.text} size={24} />
-                        <Text style={styles.controlLabel}>15</Text>
-                      </View>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.playButtonLarge}
-                      onPress={handlePlayPause}
-                      activeOpacity={0.8}
-                    >
-                      {isPlaying ? (
-                        <View style={styles.pauseIcon}>
-                          <View style={styles.pauseBar} />
-                          <View style={styles.pauseBar} />
-                        </View>
-                      ) : (
-                        <Play color={AuraColors.white} size={32} fill={AuraColors.white} />
-                      )}
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.controlButton}
-                      onPress={handleForward}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.controlIconContainer}>
-                        <RotateCw color={colors.text} size={24} />
-                        <Text style={styles.controlLabel}>15</Text>
-                      </View>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-                
-                <Text style={styles.entryDate}>{selectedFullEntry.date}</Text>
               </View>
             </ScrollView>
+            
+            <View style={[styles.fixedAudioPlayer, { paddingBottom: insets.bottom + 20 }]}>
+              <View style={styles.waveformContainerBottom}>
+                {waveAnims.map((anim, index) => {
+                  const progress = duration > 0 ? position / duration : 0;
+                  const barProgress = index / waveAnims.length;
+                  const isPastProgress = barProgress <= progress;
+                  
+                  return (
+                    <Animated.View
+                      key={index}
+                      style={[
+                        styles.waveBarBottom,
+                        {
+                          height: isPlaying ? anim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [4, 32],
+                          }) : 16,
+                          backgroundColor: isPastProgress ? AuraColors.accentOrange : colors.textSecondary,
+                          opacity: isPastProgress ? 1 : 0.3,
+                        },
+                      ]}
+                    />
+                  );
+                })}
+              </View>
+              
+              <View style={styles.timeContainerBottom}>
+                <Text style={styles.timeTextBottom}>{formatTime(position)}</Text>
+                <TouchableOpacity onPress={handleSpeedToggle} activeOpacity={0.7}>
+                  <Text style={styles.playbackSpeedBottom}>x{playbackSpeed.toFixed(1)}</Text>
+                </TouchableOpacity>
+                <Text style={styles.timeTextBottom}>{formatTime(duration)}</Text>
+              </View>
+              
+              <View style={styles.playerControlsBottom}>
+                <TouchableOpacity
+                  style={styles.navButton}
+                  onPress={handlePreviousEntry}
+                  activeOpacity={0.7}
+                >
+                  <ChevronLeft color={colors.text} size={28} strokeWidth={3} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.smallControlButton}
+                  onPress={handleRewind}
+                  activeOpacity={0.7}
+                >
+                  <RotateCcw color={colors.text} size={20} />
+                  <Text style={styles.smallControlLabel}>15</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.playButtonBottom}
+                  onPress={handlePlayPause}
+                  activeOpacity={0.8}
+                >
+                  {isPlaying ? (
+                    <View style={styles.pauseIconBottom}>
+                      <View style={styles.pauseBarBottom} />
+                      <View style={styles.pauseBarBottom} />
+                    </View>
+                  ) : (
+                    <Play color={AuraColors.white} size={28} fill={AuraColors.white} />
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.smallControlButton}
+                  onPress={handleForward}
+                  activeOpacity={0.7}
+                >
+                  <RotateCw color={colors.text} size={20} />
+                  <Text style={styles.smallControlLabel}>15</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.navButton}
+                  onPress={handleNextEntry}
+                  activeOpacity={0.7}
+                >
+                  <ChevronRight color={colors.text} size={28} strokeWidth={3} />
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </Modal>
       )}
@@ -637,6 +711,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     fontWeight: '500' as const,
   },
+  entryDateTop: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: '600' as const,
+    marginBottom: 12,
+  },
   modalContainer: {
     flex: 1,
   },
@@ -798,7 +878,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 1.5,
   },
   transcriptContent: {
-    marginBottom: 24,
+    marginBottom: 32,
   },
   fullTranscriptText: {
     fontSize: 16,
@@ -927,5 +1007,106 @@ const createStyles = (colors: any) => StyleSheet.create({
     height: 1,
     backgroundColor: colors.background,
     marginHorizontal: 8,
+  },
+  fixedAudioPlayer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.card,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 16,
+    paddingHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 12,
+  },
+  waveformContainerBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 40,
+    gap: 2,
+    marginBottom: 12,
+  },
+  waveBarBottom: {
+    width: 3,
+    borderRadius: 1.5,
+  },
+  timeContainerBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  timeTextBottom: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: colors.textSecondary,
+  },
+  playbackSpeedBottom: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: colors.text,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    backgroundColor: colors.background,
+    borderRadius: 8,
+  },
+  playerControlsBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  navButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  smallControlButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  smallControlLabel: {
+    position: 'absolute',
+    fontSize: 8,
+    fontWeight: '700' as const,
+    color: colors.text,
+  },
+  playButtonBottom: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: AuraColors.accentOrange,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: AuraColors.accentOrange,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  pauseIconBottom: {
+    flexDirection: 'row',
+    gap: 5,
+  },
+  pauseBarBottom: {
+    width: 3,
+    height: 20,
+    backgroundColor: AuraColors.white,
+    borderRadius: 1.5,
   },
 });

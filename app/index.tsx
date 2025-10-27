@@ -203,26 +203,7 @@ export default function MainScreen() {
   };
 
   const startLiveTranscription = () => {
-    const words = [
-      'Welcome', 'to', 'AURA', 'recording', 'your', 'thoughts', 'and', 'memories',
-      'in', 'real', 'time', 'with', 'live', 'transcription', 'powered', 'by', 'AI'
-    ];
-
-    let fullText = '';
-    let index = 0;
-
-    const interval = setInterval(() => {
-      if (index < words.length && recordingState === 'recording') {
-        const word = words[index];
-        setCurrentWord(word);
-        fullText += (index > 0 ? ' ' : '') + word;
-        setLiveTranscript(fullText);
-        index++;
-      } else {
-        clearInterval(interval);
-        setCurrentWord('');
-      }
-    }, 400);
+    setLiveTranscript('Listening...');
   };
 
   const stopRecording = async () => {
@@ -244,7 +225,8 @@ export default function MainScreen() {
       setCurrentWord('');
 
       if (uri) {
-        await transcribeAndSaveAudio(uri);
+        const finalTranscript = liveTranscript && liveTranscript !== 'Listening...' ? liveTranscript : null;
+        await transcribeAndSaveAudio(uri, finalTranscript);
       }
     } catch (error) {
       console.error('Failed to stop recording:', error);
@@ -253,11 +235,17 @@ export default function MainScreen() {
     }
   };
 
-  const transcribeAndSaveAudio = async (uri: string) => {
+  const transcribeAndSaveAudio = async (uri: string, existingTranscript: string | null) => {
     try {
-      console.log('Transcribing audio with OpenAI Whisper...');
-      const text = await transcribeAudioFile(uri);
-      console.log('Transcription completed:', text.slice(0, 100));
+      let text = existingTranscript;
+      
+      if (!text) {
+        console.log('Transcribing audio with OpenAI Whisper...');
+        text = await transcribeAudioFile(uri);
+        console.log('Transcription completed:', text.slice(0, 100));
+      } else {
+        console.log('Using real-time transcription result');
+      }
       
       console.log('Generating AI summary...');
       const summary = await generateSummary(text);
