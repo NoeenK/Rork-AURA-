@@ -212,7 +212,8 @@ export default function MainScreen() {
   const startLiveTranscription = async (rec: Audio.Recording) => {
     setLiveTranscript('Listening...');
     
-    const CHUNK_INTERVAL = 3000;
+    const CHUNK_INTERVAL = 2000;
+    let lastTranscribedDuration = 0;
     
     transcriptionInterval.current = setInterval(async () => {
       if (!recordingRef.current) {
@@ -224,7 +225,11 @@ export default function MainScreen() {
       
       try {
         const status = await recordingRef.current.getStatusAsync();
-        if (!status.isRecording || status.durationMillis < 2000) {
+        if (!status.isRecording || status.durationMillis < 1500) {
+          return;
+        }
+        
+        if (status.durationMillis - lastTranscribedDuration < CHUNK_INTERVAL) {
           return;
         }
         
@@ -232,15 +237,30 @@ export default function MainScreen() {
         if (!uri) return;
         
         console.log('Transcribing chunk at', status.durationMillis / 1000, 'seconds');
+        lastTranscribedDuration = status.durationMillis;
         
         const chunkText = await transcribeAudioChunk(uri);
         
         if (chunkText && chunkText.trim()) {
-          setAccumulatedTranscript(prev => {
-            const newText = prev ? `${prev} ${chunkText}` : chunkText;
-            setLiveTranscript(newText);
-            return newText;
-          });
+          const words = chunkText.trim().split(' ');
+          let wordIndex = 0;
+          
+          const wordInterval = setInterval(() => {
+            if (wordIndex < words.length) {
+              const newWord = words[wordIndex];
+              setCurrentWord(newWord);
+              setAccumulatedTranscript(prev => {
+                const newText = prev ? `${prev} ${newWord}` : newWord;
+                setLiveTranscript(newText);
+                return newText;
+              });
+              wordIndex++;
+            } else {
+              clearInterval(wordInterval);
+              setCurrentWord('');
+            }
+          }, 150);
+          
           console.log('Chunk transcribed:', chunkText);
         }
       } catch (error) {

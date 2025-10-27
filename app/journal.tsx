@@ -383,10 +383,10 @@ export default function JournalScreen() {
                     {selectedFullEntry.auraSummary.tasks && selectedFullEntry.auraSummary.tasks.length > 0 && (
                       <View style={styles.tasksSection}>
                         <Text style={styles.tasksLabel}>Tasks To Do</Text>
-                        {selectedFullEntry.auraSummary.tasks.map((task: string, idx: number) => (
+                        {selectedFullEntry.auraSummary.tasks.map((task: any, idx: number) => (
                           <View key={idx} style={styles.taskItem}>
                             <View style={styles.taskBullet} />
-                            <Text style={styles.taskText}>{task}</Text>
+                            <Text style={styles.taskText}>{typeof task === 'string' ? task : task.task || String(task)}</Text>
                           </View>
                         ))}
                       </View>
