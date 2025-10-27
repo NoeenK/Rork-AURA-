@@ -1,56 +1,115 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Platform, TextInput, KeyboardAvoidingView, ScrollView, Modal } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Platform, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Haptics from 'expo-haptics';
+import { supabase } from '@/lib/supabase';
 import { AuraColors } from '@/constants/colors';
-import { LogIn, X, Mail, Lock } from 'lucide-react-native';
+import { LogIn } from 'lucide-react-native';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function AuthScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [showEmailAuth, setShowEmailAuth] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleGoogleSignIn = () => {
-    console.log('Google Sign In button pressed');
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  const handleGoogleSignIn = async () => {
+    try {
+      setIsLoading(true);
+      if (Platform.OS !== 'web') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: 'rork-app://auth/callback',
+        },
+      });
+
+      if (error) {
+        console.error('Google Sign In Error:', error);
+        Alert.alert('Sign In Failed', error.message);
+        return;
+      }
+
+      if (data?.url) {
+        const result = await WebBrowser.openAuthSessionAsync(
+          data.url,
+          'rork-app://auth/callback'
+        );
+
+        if (result.type === 'success') {
+          const url = result.url;
+          const params = new URL(url).searchParams;
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
+
+          if (accessToken && refreshToken) {
+            await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            router.replace('/(tabs)');
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Google Sign In Error:', error);
+      Alert.alert('Error', 'Failed to sign in with Google');
+    } finally {
+      setIsLoading(false);
     }
-    router.push('/(tabs)');
   };
 
-  const handleAppleSignIn = () => {
-    console.log('Apple Sign In button pressed');
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-    router.push('/(tabs)');
-  };
+  const handleAppleSignIn = async () => {
+    try {
+      setIsLoading(true);
+      if (Platform.OS !== 'web') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
 
-  const handleEmailSignIn = () => {
-    console.log('Email Sign In button pressed');
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-    setShowEmailAuth(false);
-    setEmail('');
-    setPassword('');
-    router.push('/(tabs)');
-  };
+      if (Platform.OS !== 'ios') {
+        Alert.alert('Not Available', 'Apple Sign In is only available on iOS devices');
+        setIsLoading(false);
+        return;
+      }
 
-  const handleEmailSignUp = () => {
-    console.log('Email Sign Up button pressed');
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      if (credential.identityToken) {
+        const { error } = await supabase.auth.signInWithIdToken({
+          provider: 'apple',
+          token: credential.identityToken,
+        });
+
+        if (error) {
+          console.error('Apple Sign In Error:', error);
+          Alert.alert('Sign In Failed', error.message);
+          return;
+        }
+
+        router.replace('/(tabs)');
+      }
+    } catch (error: any) {
+      if (error.code === 'ERR_REQUEST_CANCELED') {
+        console.log('User canceled Apple Sign In');
+      } else {
+        console.error('Apple Sign In Error:', error);
+        Alert.alert('Error', 'Failed to sign in with Apple');
+      }
+    } finally {
+      setIsLoading(false);
     }
-    setShowEmailAuth(false);
-    setEmail('');
-    setPassword('');
-    router.push('/(tabs)');
   };
 
   return (
@@ -74,6 +133,7 @@ export default function AuthScreen() {
             style={styles.googleButton}
             onPress={handleGoogleSignIn}
             activeOpacity={0.8}
+            disabled={isLoading}
           >
             <View style={styles.buttonContent}>
               <View style={styles.iconContainer}>
@@ -88,6 +148,7 @@ export default function AuthScreen() {
               style={styles.appleButton}
               onPress={handleAppleSignIn}
               activeOpacity={0.8}
+              disabled={isLoading}
             >
               <View style={styles.buttonContent}>
                 <View style={styles.iconContainer}>
@@ -110,20 +171,6 @@ export default function AuthScreen() {
           </Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.createAccountButton}
-          onPress={() => {
-            setShowEmailAuth(true);
-            setIsSignUp(false);
-            if (Platform.OS !== 'web') {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            }
-          }}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.createAccountText}>Create account</Text>
-        </TouchableOpacity>
-
         <View style={[styles.footer, { paddingBottom: insets.bottom + 40 }]}>
           <LogIn color={AuraColors.accentOrange} size={20} />
           <Text style={styles.footerText}>
@@ -131,96 +178,6 @@ export default function AuthScreen() {
           </Text>
         </View>
       </View>
-
-      <Modal
-        visible={showEmailAuth}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowEmailAuth(false)}
-      >
-        <KeyboardAvoidingView
-          style={styles.modalContainer}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <TouchableOpacity
-            style={styles.modalBackdrop}
-            activeOpacity={1}
-            onPress={() => setShowEmailAuth(false)}
-          />
-          <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20 }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {isSignUp ? 'Create Account' : 'Sign In'}
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setShowEmailAuth(false);
-                  setEmail('');
-                  setPassword('');
-                }}
-                style={styles.closeButton}
-              >
-                <X color={AuraColors.charcoal} size={24} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.formContainer} keyboardShouldPersistTaps="handled">
-              <View style={styles.inputContainer}>
-                <View style={styles.inputIconContainer}>
-                  <Mail color={AuraColors.accentOrange} size={20} />
-                </View>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Email"
-                  placeholderTextColor="rgba(59, 59, 59, 0.5)"
-                  value={email}
-                  onChangeText={setEmail}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  autoCorrect={false}
-                />
-              </View>
-
-              <View style={styles.inputContainer}>
-                <View style={styles.inputIconContainer}>
-                  <Lock color={AuraColors.accentOrange} size={20} />
-                </View>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Password"
-                  placeholderTextColor="rgba(59, 59, 59, 0.5)"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </View>
-
-              <TouchableOpacity
-                style={styles.submitButton}
-                onPress={isSignUp ? handleEmailSignUp : handleEmailSignIn}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.submitButtonText}>
-                  {isSignUp ? 'Sign Up' : 'Sign In'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.switchButton}
-                onPress={() => setIsSignUp(!isSignUp)}
-              >
-                <Text style={styles.switchButtonText}>
-                  {isSignUp
-                    ? 'Already have an account? Sign In'
-                    : "Don't have an account? Sign Up"}
-                </Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </View>
   );
 }
@@ -337,101 +294,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.5)',
     textAlign: 'center',
-    fontWeight: '500' as const,
-  },
-  createAccountButton: {
-    alignSelf: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    marginTop: 16,
-  },
-  createAccountText: {
-    fontSize: 14,
-    color: AuraColors.accentOrange,
-    fontWeight: '600' as const,
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  modalBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContent: {
-    backgroundColor: AuraColors.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 20,
-    paddingHorizontal: 24,
-    maxHeight: '85%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: '700' as const,
-    color: AuraColors.charcoal,
-  },
-  closeButton: {
-    padding: 4,
-  },
-  formContainer: {
-    flex: 1,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(235, 152, 52, 0.2)',
-  },
-  inputIconContainer: {
-    marginRight: 12,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: AuraColors.charcoal,
-    paddingVertical: 14,
-    fontWeight: '500' as const,
-  },
-  submitButton: {
-    backgroundColor: AuraColors.accentOrange,
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 8,
-    shadowColor: AuraColors.accentOrange,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  submitButtonText: {
-    fontSize: 16,
-    fontWeight: '700' as const,
-    color: AuraColors.white,
-  },
-  switchButton: {
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  switchButtonText: {
-    fontSize: 14,
-    color: AuraColors.charcoal,
     fontWeight: '500' as const,
   },
 });
