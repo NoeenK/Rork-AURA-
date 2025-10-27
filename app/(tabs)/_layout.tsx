@@ -1,22 +1,25 @@
 import { Tabs } from "expo-router";
-import { Mic, Folder, User } from "lucide-react-native";
+import { Mic, BookOpen, User } from "lucide-react-native";
 import React from "react";
 import { Platform, StyleSheet } from "react-native";
 import { BlurView } from "expo-blur";
 
 import { AuraColors } from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 
 export default function TabLayout() {
+  const { colors } = useTheme();
+  
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: AuraColors.accentOrange,
-        tabBarInactiveTintColor: 'rgba(255, 255, 255, 0.4)',
+        tabBarInactiveTintColor: colors.tabIconDefault,
         headerShown: false,
         tabBarStyle: {
           position: "absolute",
           backgroundColor: Platform.OS === 'web' 
-            ? AuraColors.darkCard 
+            ? colors.card 
             : 'transparent',
           borderTopWidth: 0,
           elevation: 0,
@@ -32,30 +35,30 @@ export default function TabLayout() {
           Platform.OS !== 'web' ? (
             <BlurView
               intensity={95}
-              tint="dark"
+              tint={colors.tabBarTint as 'light' | 'dark'}
               style={StyleSheet.absoluteFillObject}
             />
           ) : null,
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="journal"
         options={{
-          title: "Recordings",
-          tabBarIcon: ({ color, size }) => <Mic color={color} size={size} />,
+          title: "Journal",
+          tabBarIcon: ({ color, size }) => <BookOpen color={color} size={size} />,
         }}
       />
       <Tabs.Screen
-        name="memories"
+        name="index"
         options={{
-          title: "Folders",
-          tabBarIcon: ({ color, size }) => <Folder color={color} size={size} />,
+          title: "Recording",
+          tabBarIcon: ({ color, size }) => <Mic color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Settings",
+          title: "Account",
           tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
         }}
       />

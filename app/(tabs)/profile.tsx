@@ -1,166 +1,141 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Sun, Moon, Smartphone, ChevronRight } from 'lucide-react-native';
+import { Sun, Moon, ChevronRight } from 'lucide-react-native';
 import { AuraColors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const [selectedTheme, setSelectedTheme] = React.useState<'light' | 'auto' | 'dark'>('light');
+  const { theme, setTheme, colors } = useTheme();
+  
+  const handleThemeChange = (newTheme: 'light' | 'dark') => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    setTheme(newTheme);
+  };
+
+  const styles = createStyles(colors);
   
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Settings</Text>
-        <TouchableOpacity
-          style={styles.doneButton}
-          onPress={() => {
-            if (Platform.OS !== 'web') {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            }
-          }}
-        >
-          <Text style={styles.doneText}>Done</Text>
-        </TouchableOpacity>
-      </View>
+    <View style={styles.container}>
+      <LinearGradient
+        colors={[colors.gradientStart, colors.gradientEnd]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
       
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={[styles.contentContainer, { paddingBottom: insets.bottom + 100 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.sectionTitle}>Theme</Text>
-        
-        <View style={styles.themeContainer}>
-          <TouchableOpacity
-            style={[styles.themeOption, selectedTheme === 'light' && styles.themeOptionActive]}
-            onPress={() => {
-              setSelectedTheme('light');
-              if (Platform.OS !== 'web') {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }
-            }}
-          >
-            <View style={styles.themeIcon}>
-              <Sun color={selectedTheme === 'light' ? AuraColors.accentOrange : AuraColors.white} size={32} />
-            </View>
-            <Text style={[styles.themeLabel, selectedTheme === 'light' && styles.themeLabelActive]}>Light</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.themeOption, selectedTheme === 'auto' && styles.themeOptionActive]}
-            onPress={() => {
-              setSelectedTheme('auto');
-              if (Platform.OS !== 'web') {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }
-            }}
-          >
-            <View style={styles.themeIcon}>
-              <Smartphone color={selectedTheme === 'auto' ? AuraColors.accentOrange : AuraColors.white} size={32} />
-            </View>
-            <Text style={[styles.themeLabel, selectedTheme === 'auto' && styles.themeLabelActive]}>Auto</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.themeOption, selectedTheme === 'dark' && styles.themeOptionActive]}
-            onPress={() => {
-              setSelectedTheme('dark');
-              if (Platform.OS !== 'web') {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }
-            }}
-          >
-            <View style={styles.themeIcon}>
-              <Moon color={selectedTheme === 'dark' ? AuraColors.accentOrange : AuraColors.white} size={32} />
-            </View>
-            <Text style={[styles.themeLabel, selectedTheme === 'dark' && styles.themeLabelActive]}>Dark</Text>
-          </TouchableOpacity>
+      <View style={[styles.content, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Account</Text>
         </View>
+      
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={[styles.contentContainer, { paddingBottom: insets.bottom + 100 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.sectionTitle}>Theme</Text>
+          
+          <View style={styles.themeContainer}>
+            <TouchableOpacity
+              style={[styles.themeOption, theme === 'light' && styles.themeOptionActive]}
+              onPress={() => handleThemeChange('light')}
+            >
+              <View style={styles.themeIcon}>
+                <Sun color={theme === 'light' ? AuraColors.accentOrange : colors.text} size={40} />
+              </View>
+              <Text style={[styles.themeLabel, theme === 'light' && styles.themeLabelActive]}>Light</Text>
+            </TouchableOpacity>
 
-        <Text style={styles.sectionTitle}>General</Text>
-        
-        <View style={styles.menuList}>
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => {
-              if (Platform.OS !== 'web') {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }
-            }}
-          >
-            <Text style={styles.menuText}>Account</Text>
-            <ChevronRight color="rgba(255, 255, 255, 0.4)" size={20} />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.themeOption, theme === 'dark' && styles.themeOptionActive]}
+              onPress={() => handleThemeChange('dark')}
+            >
+              <View style={styles.themeIcon}>
+                <Moon color={theme === 'dark' ? AuraColors.accentOrange : colors.text} size={40} />
+              </View>
+              <Text style={[styles.themeLabel, theme === 'dark' && styles.themeLabelActive]}>Dark</Text>
+            </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => {
-              if (Platform.OS !== 'web') {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }
-            }}
-          >
-            <Text style={styles.menuText}>Notifications</Text>
-            <ChevronRight color="rgba(255, 255, 255, 0.4)" size={20} />
-          </TouchableOpacity>
+          <Text style={styles.sectionTitle}>General</Text>
+          
+          <View style={styles.menuList}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                if (Platform.OS !== 'web') {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }
+              }}
+            >
+              <Text style={styles.menuText}>Profile Settings</Text>
+              <ChevronRight color={colors.textSecondary} size={20} />
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => {
-              if (Platform.OS !== 'web') {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }
-            }}
-          >
-            <Text style={styles.menuText}>Privacy</Text>
-            <ChevronRight color="rgba(255, 255, 255, 0.4)" size={20} />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                if (Platform.OS !== 'web') {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }
+              }}
+            >
+              <Text style={styles.menuText}>Notifications</Text>
+              <ChevronRight color={colors.textSecondary} size={20} />
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => {
-              if (Platform.OS !== 'web') {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }
-            }}
-          >
-            <Text style={styles.menuText}>Help & Support</Text>
-            <ChevronRight color="rgba(255, 255, 255, 0.4)" size={20} />
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                if (Platform.OS !== 'web') {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }
+              }}
+            >
+              <Text style={styles.menuText}>Privacy & Security</Text>
+              <ChevronRight color={colors.textSecondary} size={20} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                if (Platform.OS !== 'web') {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }
+              }}
+            >
+              <Text style={styles.menuText}>Help & Support</Text>
+              <ChevronRight color={colors.textSecondary} size={20} />
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: AuraColors.darkBg,
+  },
+  content: {
+    flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
   title: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '700' as const,
-    color: AuraColors.white,
+    color: colors.text,
     letterSpacing: 0.5,
-  },
-  doneButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  doneText: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: AuraColors.accentOrange,
   },
   scrollView: {
     flex: 1,
@@ -172,59 +147,71 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700' as const,
-    color: AuraColors.white,
+    color: colors.text,
     marginTop: 24,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   themeContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: 16,
     marginBottom: 8,
   },
   themeOption: {
     flex: 1,
     aspectRatio: 1,
-    backgroundColor: AuraColors.darkCard,
-    borderRadius: 16,
+    backgroundColor: colors.card,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
-    borderWidth: 2,
+    gap: 16,
+    borderWidth: 3,
     borderColor: 'transparent',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   themeOptionActive: {
     borderColor: AuraColors.accentOrange,
+    shadowColor: AuraColors.accentOrange,
+    shadowOpacity: 0.3,
   },
   themeIcon: {
     marginTop: 8,
   },
   themeLabel: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '500' as const,
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: colors.textSecondary,
   },
   themeLabelActive: {
-    color: AuraColors.white,
-    fontWeight: '600' as const,
+    color: colors.text,
+    fontWeight: '700' as const,
   },
   menuList: {
-    backgroundColor: AuraColors.darkCard,
+    backgroundColor: colors.card,
     borderRadius: 16,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 18,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    borderBottomColor: colors.border,
   },
   menuText: {
     fontSize: 16,
     fontWeight: '500' as const,
-    color: AuraColors.white,
+    color: colors.text,
   },
 });
