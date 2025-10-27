@@ -16,37 +16,41 @@ export default function AuthScreen() {
   const [isSignUp, setIsSignUp] = useState(false);
 
   const handleGoogleSignIn = () => {
+    console.log('Google Sign In button pressed');
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    router.replace('/(tabs)');
+    router.push('/(tabs)');
   };
 
   const handleAppleSignIn = () => {
+    console.log('Apple Sign In button pressed');
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    router.replace('/(tabs)');
+    router.push('/(tabs)');
   };
 
   const handleEmailSignIn = () => {
+    console.log('Email Sign In button pressed');
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     setShowEmailAuth(false);
     setEmail('');
     setPassword('');
-    router.replace('/(tabs)');
+    router.push('/(tabs)');
   };
 
   const handleEmailSignUp = () => {
+    console.log('Email Sign Up button pressed');
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     setShowEmailAuth(false);
     setEmail('');
     setPassword('');
-    router.replace('/(tabs)');
+    router.push('/(tabs)');
   };
 
   return (
