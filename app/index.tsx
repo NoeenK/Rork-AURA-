@@ -6,7 +6,7 @@ import { Audio } from 'expo-av';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
-import { transcribeAudioFile, generateSummary, generateAuraSummary, extractCalendarEvents } from '@/lib/openai-transcription';
+import { transcribeAudioFile, generateSummary, generateAuraSummary, extractCalendarEvents, transcribeAudioChunk } from '@/lib/openai-transcription';
 import * as Haptics from 'expo-haptics';
 import { useJournal } from '@/contexts/JournalContext';
 import { router } from 'expo-router';
@@ -23,6 +23,7 @@ export default function MainScreen() {
   const [recordingState, setRecordingState] = useState<RecordingState>('idle');
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [liveTranscript, setLiveTranscript] = useState<string>('');
+  const [accumulatedTranscript, setAccumulatedTranscript] = useState<string>('');
   const [currentWord, setCurrentWord] = useState<string>('');
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const [permissionGranted, setPermissionGranted] = useState<boolean>(false);
@@ -35,6 +36,8 @@ export default function MainScreen() {
   ).current;
 
   const durationInterval = useRef<number | null>(null);
+  const transcriptionInterval = useRef<number | null>(null);
+  const recordingRef = useRef<Audio.Recording | null>(null);
 
   const requestPermissions = async () => {
     try {
@@ -70,25 +73,27 @@ export default function MainScreen() {
   }, [pulseAnim]);
 
   const startWaveAnimation = useCallback(() => {
-    const animations = waveAnims.map((anim) =>
-      Animated.loop(
+    const animations = waveAnims.map((anim, index) => {
+      const offset = index * 0.1;
+      return Animated.loop(
         Animated.sequence([
           Animated.timing(anim, {
-            toValue: 0.2 + Math.random() * 0.8,
-            duration: 200 + Math.random() * 300,
+            toValue: 0.3 + Math.random() * 0.7,
+            duration: 300 + Math.random() * 200,
             useNativeDriver: false,
+            delay: offset * 100,
           }),
           Animated.timing(anim, {
-            toValue: 0.2,
-            duration: 200 + Math.random() * 300,
+            toValue: 0.2 + Math.random() * 0.3,
+            duration: 300 + Math.random() * 200,
             useNativeDriver: false,
           }),
         ])
-      )
-    );
+      );
+    });
 
     animations.forEach((animation, index) => {
-      setTimeout(() => animation.start(), index * 30);
+      setTimeout(() => animation.start(), index * 20);
     });
   }, [waveAnims]);
 
@@ -191,19 +196,57 @@ export default function MainScreen() {
       });
 
       setRecording(newRecording);
+      recordingRef.current = newRecording;
       setRecordingState('recording');
       setLiveTranscript('');
+      setAccumulatedTranscript('');
       setRecordingDuration(0);
       console.log('Recording started');
 
-      startLiveTranscription();
+      startLiveTranscription(newRecording);
     } catch (error) {
       console.error('Failed to start recording:', error);
     }
   };
 
-  const startLiveTranscription = () => {
+  const startLiveTranscription = async (rec: Audio.Recording) => {
     setLiveTranscript('Listening...');
+    
+    const CHUNK_INTERVAL = 3000;
+    
+    transcriptionInterval.current = setInterval(async () => {
+      if (!recordingRef.current) {
+        if (transcriptionInterval.current) {
+          clearInterval(transcriptionInterval.current);
+        }
+        return;
+      }
+      
+      try {
+        const status = await recordingRef.current.getStatusAsync();
+        if (!status.isRecording || status.durationMillis < 2000) {
+          return;
+        }
+        
+        const uri = recordingRef.current.getURI();
+        if (!uri) return;
+        
+        console.log('Transcribing chunk at', status.durationMillis / 1000, 'seconds');
+        
+        const chunkText = await transcribeAudioChunk(uri);
+        
+        if (chunkText && chunkText.trim()) {
+          setAccumulatedTranscript(prev => {
+            const newText = prev ? `${prev} ${chunkText}` : chunkText;
+            setLiveTranscript(newText);
+            return newText;
+          });
+          console.log('Chunk transcribed:', chunkText);
+        }
+      } catch (error) {
+        console.error('Error transcribing chunk:', error);
+      }
+    }, CHUNK_INTERVAL) as any;
   };
 
   const stopRecording = async () => {
@@ -212,6 +255,11 @@ export default function MainScreen() {
     try {
       setRecordingState('processing');
       console.log('Stopping recording...');
+      
+      if (transcriptionInterval.current) {
+        clearInterval(transcriptionInterval.current);
+        transcriptionInterval.current = null;
+      }
       
       await recording.stopAndUnloadAsync();
       await Audio.setAudioModeAsync({
@@ -222,10 +270,11 @@ export default function MainScreen() {
       console.log('Recording stopped, URI:', uri);
       
       setRecording(null);
+      recordingRef.current = null;
       setCurrentWord('');
 
       if (uri) {
-        const finalTranscript = liveTranscript && liveTranscript !== 'Listening...' ? liveTranscript : null;
+        const finalTranscript = accumulatedTranscript || null;
         await transcribeAndSaveAudio(uri, finalTranscript);
       }
     } catch (error) {
@@ -239,12 +288,15 @@ export default function MainScreen() {
     try {
       let text = existingTranscript;
       
-      if (!text) {
-        console.log('Transcribing audio with OpenAI Whisper...');
+      if (!text || text === 'Listening...') {
+        console.log('Transcribing full audio with OpenAI Whisper...');
         text = await transcribeAudioFile(uri);
         console.log('Transcription completed:', text.slice(0, 100));
       } else {
-        console.log('Using real-time transcription result');
+        console.log('Using accumulated real-time transcription');
+        console.log('Verifying with final transcription...');
+        const finalText = await transcribeAudioFile(uri);
+        text = finalText.length > text.length ? finalText : text;
       }
       
       console.log('Generating AI summary...');
@@ -293,13 +345,19 @@ export default function MainScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     if (recordingState === 'recording' || recordingState === 'paused') {
+      if (transcriptionInterval.current) {
+        clearInterval(transcriptionInterval.current);
+        transcriptionInterval.current = null;
+      }
       if (recording) {
         recording.stopAndUnloadAsync();
         setRecording(null);
+        recordingRef.current = null;
       }
       setRecordingState('idle');
       setRecordingDuration(0);
       setLiveTranscript('');
+      setAccumulatedTranscript('');
       setIsPaused(false);
     }
     toggleMenu();
@@ -431,22 +489,29 @@ export default function MainScreen() {
           {(recordingState === 'recording' || recordingState === 'paused') && (
             <>
               <View style={styles.waveformContainer}>
-                {waveAnims.map((anim, index) => (
-                  <Animated.View
-                    key={index}
-                    style={[
-                      styles.waveBar,
-                      {
-                        height: anim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [10, 120],
-                        }),
-                        backgroundColor: AuraColors.accentOrange,
-                        opacity: recordingState === 'paused' ? 0.3 : 0.8,
-                      },
-                    ]}
-                  />
-                ))}
+                {waveAnims.map((anim, index) => {
+                  const position = index / waveAnims.length;
+                  const flowOffset = (recordingDuration * 50 + index * 30) % 360;
+                  
+                  return (
+                    <Animated.View
+                      key={index}
+                      style={[
+                        styles.waveBar,
+                        {
+                          height: anim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [8, 100],
+                          }),
+                          backgroundColor: AuraColors.accentOrange,
+                          opacity: recordingState === 'paused' ? 0.3 : (
+                            0.4 + 0.6 * Math.abs(Math.sin((flowOffset * Math.PI) / 180))
+                          ),
+                        },
+                      ]}
+                    />
+                  );
+                })}
               </View>
               
               <Text style={styles.recordingDuration}>

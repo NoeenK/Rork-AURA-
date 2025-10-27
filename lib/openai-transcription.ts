@@ -133,6 +133,54 @@ export class OpenAIRealtimeTranscription {
   }
 }
 
+export async function transcribeAudioChunk(uri: string): Promise<string> {
+  try {
+    console.log('Transcribing audio chunk:', uri);
+    
+    const formData = new FormData();
+    
+    if (Platform.OS === 'web') {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      formData.append('file', blob, 'chunk.webm');
+    } else {
+      const uriParts = uri.split('.');
+      const fileType = uriParts[uriParts.length - 1];
+      
+      const audioFile = {
+        uri,
+        name: `chunk.${fileType}`,
+        type: `audio/${fileType}`,
+      } as any;
+      
+      formData.append('file', audioFile);
+    }
+
+    formData.append('model', 'whisper-1');
+    formData.append('language', 'en');
+
+    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Chunk transcription error:', errorText);
+      return '';
+    }
+
+    const data = await response.json();
+    return data.text || '';
+  } catch (error) {
+    console.error('Chunk transcription error:', error);
+    return '';
+  }
+}
+
 export async function transcribeAudioFile(uri: string): Promise<string> {
   try {
     console.log('Starting transcription for:', uri);
@@ -197,6 +245,10 @@ export async function extractCalendarEvents(transcript: string): Promise<Calenda
   try {
     console.log('Extracting calendar events from transcript...');
     
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -209,18 +261,39 @@ export async function extractCalendarEvents(transcript: string): Promise<Calenda
           {
             role: 'system',
             content: `You are an AI assistant that extracts calendar events from conversation transcripts. 
-Extract any mentions of events, meetings, appointments, or plans with dates and times. 
-Return ONLY a valid JSON array of events. Each event should have: title, date (YYYY-MM-DD format), time (optional, HH:MM format), description, and participants (optional array of names).
+
+Extract any mentions of events, meetings, appointments, or plans with dates and times.
+
+IMPORTANT PARSING RULES:
+- "tomorrow" means ${tomorrow}
+- "today" means ${today}
+- "tonight" means ${today}
+- "this evening" means ${today}
+- Convert relative dates ("next Monday", "in 2 days") to YYYY-MM-DD format
+- Parse times like "2pm", "2:00", "14:00" to HH:MM 24-hour format (e.g., "14:00")
+- Extract participant names mentioned (e.g., "with Mark", "Mark and I")
+- Infer event type from context (e.g., "tennis" → "Tennis with [name]")
+
+Return ONLY a valid JSON array of events. Each event must have:
+- title: Brief description of the event (e.g., "Tennis with Mark")
+- date: YYYY-MM-DD format
+- time: HH:MM 24-hour format (optional if time not mentioned)
+- description: Full context from transcript
+- participants: Array of names mentioned (optional)
+
 If no events are found, return an empty array [].
-Do not include any markdown formatting or explanation, just the raw JSON array.`
+Do not include any markdown formatting or explanation, just the raw JSON array.
+
+Current date/time for reference: ${now.toISOString()}
+Day of week: ${now.toLocaleDateString('en-US', { weekday: 'long' })}`
           },
           {
             role: 'user',
-            content: `Extract calendar events from this transcript:\n\n${transcript}\n\nCurrent date: ${new Date().toISOString()}`
+            content: `Extract calendar events from this transcript:\n\n${transcript}`
           }
         ],
-        temperature: 0.3,
-        max_tokens: 500,
+        temperature: 0.2,
+        max_tokens: 800,
       }),
     });
 

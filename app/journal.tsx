@@ -451,9 +451,6 @@ export default function JournalScreen() {
               
               <View style={styles.timeContainerBottom}>
                 <Text style={styles.timeTextBottom}>{formatTime(position)}</Text>
-                <TouchableOpacity onPress={handleSpeedToggle} activeOpacity={0.7}>
-                  <Text style={styles.playbackSpeedBottom}>x{playbackSpeed.toFixed(1)}</Text>
-                </TouchableOpacity>
                 <Text style={styles.timeTextBottom}>{formatTime(duration)}</Text>
               </View>
               
@@ -507,6 +504,14 @@ export default function JournalScreen() {
                   <ChevronRight color={colors.text} size={28} strokeWidth={3} />
                 </TouchableOpacity>
               </View>
+              
+              <TouchableOpacity 
+                onPress={handleSpeedToggle} 
+                activeOpacity={0.7}
+                style={styles.speedControlButton}
+              >
+                <Text style={styles.playbackSpeedBottom}>x{playbackSpeed.toFixed(1)}</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </Modal>
@@ -1016,7 +1021,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingTop: 16,
+    paddingTop: 12,
     paddingHorizontal: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
@@ -1052,8 +1057,14 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 13,
     fontWeight: '700' as const,
     color: colors.text,
+  },
+  speedControlButton: {
+    position: 'absolute',
+    right: 0,
+    top: '50%',
+    transform: [{ translateY: -18 }],
     paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingVertical: 6,
     backgroundColor: colors.background,
     borderRadius: 8,
   },
@@ -1062,6 +1073,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 4,
+    position: 'relative',
   },
   navButton: {
     width: 44,
