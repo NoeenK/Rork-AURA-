@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 
-const OPENAI_API_KEY = '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';
+const OPENAI_API_KEY = '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';
 
 export interface TranscriptionCallback {
   onTranscript: (text: string, isFinal: boolean) => void;
@@ -157,8 +157,8 @@ export async function transcribeAudioFile(uri: string): Promise<string> {
     }
 
     formData.append('model', 'whisper-1');
-    formData.append('language', 'en');
 
+    console.log('Sending request to OpenAI Whisper API...');
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
@@ -167,8 +167,11 @@ export async function transcribeAudioFile(uri: string): Promise<string> {
       body: formData,
     });
 
+    console.log('Response status:', response.status);
+    
     if (!response.ok) {
       const errorText = await response.text();
+      console.error('Error response:', errorText);
       throw new Error(`Transcription failed: ${response.statusText} - ${errorText}`);
     }
 
@@ -179,5 +182,50 @@ export async function transcribeAudioFile(uri: string): Promise<string> {
   } catch (error) {
     console.error('Transcription error:', error);
     throw error;
+  }
+}
+
+export async function generateSummary(transcript: string): Promise<string> {
+  try {
+    console.log('Generating summary for transcript...');
+    
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a helpful assistant that creates concise, meaningful summaries of voice recordings. Create a summary that captures the key points and main ideas.'
+          },
+          {
+            role: 'user',
+            content: `Please create a concise summary of the following transcript:\n\n${transcript}`
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 200,
+      }),
+    });
+
+    console.log('Summary response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Summary error response:', errorText);
+      throw new Error(`Summary generation failed: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log('Summary generated successfully');
+    
+    return data.choices[0]?.message?.content || 'Summary not available';
+  } catch (error) {
+    console.error('Summary generation error:', error);
+    return `Recording from ${new Date().toLocaleDateString()}`;
   }
 }

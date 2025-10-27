@@ -6,7 +6,7 @@ import { Audio } from 'expo-av';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
-import { transcribeAudioFile } from '@/lib/openai-transcription';
+import { transcribeAudioFile, generateSummary } from '@/lib/openai-transcription';
 import * as Haptics from 'expo-haptics';
 import { useJournal } from '@/contexts/JournalContext';
 import { router } from 'expo-router';
@@ -250,8 +250,12 @@ export default function MainScreen() {
     try {
       console.log('Transcribing audio with OpenAI Whisper...');
       const text = await transcribeAudioFile(uri);
+      console.log('Transcription completed:', text.slice(0, 100));
       
-      const summary = `Recording from ${new Date().toLocaleDateString()}`;
+      console.log('Generating AI summary...');
+      const summary = await generateSummary(text);
+      console.log('Summary generated:', summary);
+      
       const title = text.slice(0, 50) + (text.length > 50 ? '...' : '');
 
       addEntry({
