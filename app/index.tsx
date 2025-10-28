@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView, NativeModules } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Mic, Square, Calendar, Settings, BookOpen, MessageCircle, X } from 'lucide-react-native';
 import { Audio } from 'expo-av';
@@ -537,6 +537,11 @@ export default function MainScreen() {
     outputRange: [0, -100],
   });
 
+  const glowOpacity = menuAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
   const styles = createStyles(colors);
   
   return (
@@ -688,12 +693,12 @@ export default function MainScreen() {
                       { translateX: recordButton2TranslateX },
                       { translateY: recordButton2TranslateY },
                     ],
-                    opacity: menuAnim,
+                    opacity: glowOpacity,
                   },
                 ]}
               >
                 <View style={styles.glowContainer}>
-                  <View style={[styles.glowRing, { opacity: menuAnim }]} />
+                  <Animated.View style={[styles.glowRing, { opacity: glowOpacity }]} />
                   <TouchableOpacity
                     style={[styles.menuButton, styles.journalMenuButton]}
                     onPress={handleJournal}
@@ -713,12 +718,12 @@ export default function MainScreen() {
                       { scale: recordButton1Scale },
                       { translateY: recordButton1TranslateY },
                     ],
-                    opacity: menuAnim,
+                    opacity: glowOpacity,
                   },
                 ]}
               >
                 <View style={styles.glowContainer}>
-                  <View style={[styles.glowRing, { opacity: menuAnim }]} />
+                  <Animated.View style={[styles.glowRing, { opacity: glowOpacity }]} />
                   <TouchableOpacity
                     style={[styles.menuButton, styles.recordMenuButton]}
                     onPress={startRecording}
@@ -739,12 +744,12 @@ export default function MainScreen() {
                       { translateX: recordButton3TranslateX },
                       { translateY: recordButton3TranslateY },
                     ],
-                    opacity: menuAnim,
+                    opacity: glowOpacity,
                   },
                 ]}
               >
                 <View style={styles.glowContainer}>
-                  <View style={[styles.glowRing, { opacity: menuAnim }]} />
+                  <Animated.View style={[styles.glowRing, { opacity: glowOpacity }]} />
                   <TouchableOpacity
                     style={[styles.menuButton, styles.askMenuButton]}
                     onPress={handleAsk}
