@@ -1,5 +1,6 @@
-import React, { useRef } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView, PanResponder, Image } from 'react-native';
+import React, { useRef, useState, useEffect } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView, PanResponder } from 'react-native';
+import * as Font from 'expo-font';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Mic, Calendar, Settings, Brain, TrendingUp, Target, Zap } from 'lucide-react-native';
 import { AuraColors } from '@/constants/colors';
@@ -11,9 +12,25 @@ import { router } from 'expo-router';
 export default function MainScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const [fontLoaded, setFontLoaded] = useState(false);
   
   const leftGlowAnim = useRef(new Animated.Value(0.3)).current;
   const rightGlowAnim = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    async function loadFont() {
+      try {
+        await Font.loadAsync({
+          'Synthra': { uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/nu4rtyxwfuv3mq41m36i3' },
+        });
+        setFontLoaded(true);
+      } catch (error) {
+        console.log('Font loading error:', error);
+        setFontLoaded(true);
+      }
+    }
+    loadFont();
+  }, []);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -101,11 +118,7 @@ export default function MainScreen() {
       
       <View style={[styles.content, { paddingTop: insets.top + 16 }]}>
         <View style={styles.header}>
-          <Image 
-            source={{ uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/nucrtwbaqeja2anws0t6d' }}
-            style={styles.titleImage}
-            resizeMode="contain"
-          />
+          <Text style={[styles.logoText, fontLoaded && { fontFamily: 'Synthra' }]}>AURA</Text>
           <View style={styles.headerIcons}>
             <TouchableOpacity onPress={handleCalendar} style={styles.headerIcon}>
               <Calendar color={colors.text} size={24} />
@@ -230,9 +243,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 8,
   },
-  titleImage: {
-    width: 120,
-    height: 40,
+  logoText: {
+    fontSize: 32,
+    fontWeight: '400' as const,
+    color: colors.text,
+    letterSpacing: 2,
   },
   headerIcons: {
     flexDirection: 'row',

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Keyboard, PanResponder, TouchableWithoutFeedback, Image } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Keyboard, PanResponder, TouchableWithoutFeedback } from 'react-native';
+import * as Font from 'expo-font';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Mic, ArrowUp, History, FileText, Megaphone, List, CheckSquare, Mail, Pen, Sparkles } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -26,12 +27,29 @@ export default function AskAuraScreen() {
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   const [showCreateOptions, setShowCreateOptions] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [fontLoaded, setFontLoaded] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const historyAnim = useRef(new Animated.Value(-300)).current;
   const inputAnim = useRef(new Animated.Value(0)).current;
   const createAnim = useRef(new Animated.Value(0)).current;
 
   const inputRef = useRef<TextInput>(null);
+  
+  useEffect(() => {
+    async function loadFont() {
+      try {
+        await Font.loadAsync({
+          'Synthra': { uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/nu4rtyxwfuv3mq41m36i3' },
+        });
+        setFontLoaded(true);
+      } catch (error) {
+        console.log('Font loading error:', error);
+        setFontLoaded(true);
+      }
+    }
+    loadFont();
+  }, []);
   
   const toggleHistory = () => {
     if (Platform.OS !== 'web') {
@@ -257,6 +275,7 @@ export default function AskAuraScreen() {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
+    setSelectedCategory(option);
     console.log('Selected create option:', option);
   };
 
@@ -309,11 +328,7 @@ export default function AskAuraScreen() {
         {mode === 'ask' && messages.length === 0 ? (
           <View style={styles.logoContainer} {...panResponder.panHandlers}>
             <View style={styles.logoWrapper}>
-              <Image 
-                source={{ uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/nucrtwbaqeja2anws0t6d' }}
-                style={styles.logoImage}
-                resizeMode="contain"
-              />
+              <Text style={[styles.logoText, fontLoaded && { fontFamily: 'Synthra' }]}>Aura</Text>
             </View>
             <Text style={styles.infoText}>
               Ask anything about your notes. Since October 21, 2025, you&apos;ve recorded a total of {entries.length} notes.
@@ -336,7 +351,7 @@ export default function AskAuraScreen() {
                     message.role === 'user' ? styles.userMessage : styles.assistantMessage,
                   ]}
                 >
-                  <Text style={styles.messageRole}>
+                  <Text style={[styles.messageRole, fontLoaded && message.role === 'assistant' && { fontFamily: 'Synthra' }]}>
                     {message.role === 'user' ? 'You' : 'AURA'}
                   </Text>
                   <Text style={styles.messageText}>{message.content}</Text>
@@ -362,48 +377,139 @@ export default function AskAuraScreen() {
               <Text style={styles.createTitle}>1. What do you want to create?</Text>
               
               <View style={styles.optionsGrid}>
-                <TouchableOpacity style={styles.createOption} onPress={() => handleCreateOption('summary')}>
-                  <FileText color={colors.text} size={24} />
-                  <Text style={styles.createOptionText}>Summary</Text>
+                <TouchableOpacity 
+                  style={[
+                    styles.createOption,
+                    selectedCategory === 'summary' && styles.createOptionSelected
+                  ]} 
+                  onPress={() => handleCreateOption('summary')}
+                  activeOpacity={0.7}
+                >
+                  <FileText color={selectedCategory === 'summary' ? AuraColors.white : colors.text} size={20} />
+                  <Text style={[
+                    styles.createOptionText,
+                    selectedCategory === 'summary' && styles.createOptionTextSelected
+                  ]}>Summary</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.createOption} onPress={() => handleCreateOption('meeting')}>
-                  <List color={colors.text} size={24} />
-                  <Text style={styles.createOptionText}>Meeting report</Text>
+                <TouchableOpacity 
+                  style={[
+                    styles.createOption,
+                    selectedCategory === 'meeting' && styles.createOptionSelected
+                  ]} 
+                  onPress={() => handleCreateOption('meeting')}
+                  activeOpacity={0.7}
+                >
+                  <List color={selectedCategory === 'meeting' ? AuraColors.white : colors.text} size={20} />
+                  <Text style={[
+                    styles.createOptionText,
+                    selectedCategory === 'meeting' && styles.createOptionTextSelected
+                  ]}>Meeting report</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.createOption} onPress={() => handleCreateOption('list')}>
-                  <List color={colors.text} size={24} />
-                  <Text style={styles.createOptionText}>List points</Text>
+                <TouchableOpacity 
+                  style={[
+                    styles.createOption,
+                    selectedCategory === 'list' && styles.createOptionSelected
+                  ]} 
+                  onPress={() => handleCreateOption('list')}
+                  activeOpacity={0.7}
+                >
+                  <List color={selectedCategory === 'list' ? AuraColors.white : colors.text} size={20} />
+                  <Text style={[
+                    styles.createOptionText,
+                    selectedCategory === 'list' && styles.createOptionTextSelected
+                  ]}>List points</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.createOption} onPress={() => handleCreateOption('todo')}>
-                  <CheckSquare color={colors.text} size={24} />
-                  <Text style={styles.createOptionText}>To-do list</Text>
+                <TouchableOpacity 
+                  style={[
+                    styles.createOption,
+                    selectedCategory === 'todo' && styles.createOptionSelected
+                  ]} 
+                  onPress={() => handleCreateOption('todo')}
+                  activeOpacity={0.7}
+                >
+                  <CheckSquare color={selectedCategory === 'todo' ? AuraColors.white : colors.text} size={20} />
+                  <Text style={[
+                    styles.createOptionText,
+                    selectedCategory === 'todo' && styles.createOptionTextSelected
+                  ]}>To-do list</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.createOption} onPress={() => handleCreateOption('tweet')}>
-                  <Megaphone color={colors.text} size={24} />
-                  <Text style={styles.createOptionText}>Tweet</Text>
+                <TouchableOpacity 
+                  style={[
+                    styles.createOption,
+                    selectedCategory === 'tweet' && styles.createOptionSelected
+                  ]} 
+                  onPress={() => handleCreateOption('tweet')}
+                  activeOpacity={0.7}
+                >
+                  <Megaphone color={selectedCategory === 'tweet' ? AuraColors.white : colors.text} size={20} />
+                  <Text style={[
+                    styles.createOptionText,
+                    selectedCategory === 'tweet' && styles.createOptionTextSelected
+                  ]}>Tweet</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.createOption} onPress={() => handleCreateOption('email')}>
-                  <Mail color={colors.text} size={24} />
-                  <Text style={styles.createOptionText}>Email</Text>
+                <TouchableOpacity 
+                  style={[
+                    styles.createOption,
+                    selectedCategory === 'email' && styles.createOptionSelected
+                  ]} 
+                  onPress={() => handleCreateOption('email')}
+                  activeOpacity={0.7}
+                >
+                  <Mail color={selectedCategory === 'email' ? AuraColors.white : colors.text} size={20} />
+                  <Text style={[
+                    styles.createOptionText,
+                    selectedCategory === 'email' && styles.createOptionTextSelected
+                  ]}>Email</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.createOption} onPress={() => handleCreateOption('blog')}>
-                  <Pen color={colors.text} size={24} />
-                  <Text style={styles.createOptionText}>Blog post</Text>
+                <TouchableOpacity 
+                  style={[
+                    styles.createOption,
+                    selectedCategory === 'blog' && styles.createOptionSelected
+                  ]} 
+                  onPress={() => handleCreateOption('blog')}
+                  activeOpacity={0.7}
+                >
+                  <Pen color={selectedCategory === 'blog' ? AuraColors.white : colors.text} size={20} />
+                  <Text style={[
+                    styles.createOptionText,
+                    selectedCategory === 'blog' && styles.createOptionTextSelected
+                  ]}>Blog post</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.createOption} onPress={() => handleCreateOption('cleanup')}>
-                  <Sparkles color={colors.text} size={24} />
-                  <Text style={styles.createOptionText}>Cleanup</Text>
+                <TouchableOpacity 
+                  style={[
+                    styles.createOption,
+                    selectedCategory === 'cleanup' && styles.createOptionSelected
+                  ]} 
+                  onPress={() => handleCreateOption('cleanup')}
+                  activeOpacity={0.7}
+                >
+                  <Sparkles color={selectedCategory === 'cleanup' ? AuraColors.white : colors.text} size={20} />
+                  <Text style={[
+                    styles.createOptionText,
+                    selectedCategory === 'cleanup' && styles.createOptionTextSelected
+                  ]}>Cleanup</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.createOptionCustom} onPress={() => handleCreateOption('custom')}>
-                  <Text style={styles.createOptionCustomText}>+ Custom</Text>
+                <TouchableOpacity 
+                  style={[
+                    styles.createOption,
+                    styles.createOptionCustom,
+                    selectedCategory === 'custom' && styles.createOptionSelected
+                  ]} 
+                  onPress={() => handleCreateOption('custom')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[
+                    styles.createOptionCustomText,
+                    selectedCategory === 'custom' && styles.createOptionTextSelected
+                  ]}>+ Custom</Text>
                 </TouchableOpacity>
               </View>
 
@@ -586,9 +692,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 24,
   },
-  logoImage: {
-    width: 200,
-    height: 80,
+  logoText: {
+    fontSize: 72,
+    fontWeight: '400' as const,
+    color: colors.text,
+    letterSpacing: 2,
   },
   infoText: {
     fontSize: 14,
@@ -670,37 +778,44 @@ const createStyles = (colors: any) => StyleSheet.create({
   optionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 10,
   },
   createOption: {
-    width: '47%',
+    width: '30%',
+    aspectRatio: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
     borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
-    gap: 8,
-  },
-  createOptionText: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: colors.text,
-  },
-  createOptionCustom: {
-    width: '47%',
-    backgroundColor: 'rgba(255, 107, 0, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 107, 0, 0.3)',
-    borderRadius: 16,
-    padding: 16,
+    padding: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 6,
+  },
+  createOptionSelected: {
+    backgroundColor: 'rgba(255, 107, 0, 0.2)',
+    borderColor: AuraColors.accentOrange,
+    borderWidth: 1.5,
+  },
+  createOptionText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: colors.text,
+    textAlign: 'center',
+  },
+  createOptionTextSelected: {
+    color: AuraColors.white,
+    fontWeight: '700' as const,
+  },
+  createOptionCustom: {
+    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+    borderColor: 'rgba(255, 107, 0, 0.3)',
   },
   createOptionCustomText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '700' as const,
     color: AuraColors.accentOrange,
+    textAlign: 'center',
   },
   noteOption: {
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
