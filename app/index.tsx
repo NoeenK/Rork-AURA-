@@ -275,13 +275,13 @@ export default function MainScreen() {
                   {
                     translateX: leftButtonAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, -110],
+                      outputRange: [0, -100],
                     }),
                   },
                   {
                     translateY: leftButtonAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, -110],
+                      outputRange: [0, 100],
                     }),
                   },
                   {
@@ -300,11 +300,12 @@ export default function MainScreen() {
               activeOpacity={0.8}
             >
               <LinearGradient
-                colors={['#FF8A00', '#FF6E40']}
+                colors={['rgba(255, 138, 0, 0.4)', 'rgba(255, 110, 64, 0.3)']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.fanButtonInner}
               >
+                <View style={styles.glassOverlay} />
                 <View style={styles.fanButtonGlow} />
                 <BookOpen color={AuraColors.white} size={24} />
               </LinearGradient>
@@ -322,7 +323,7 @@ export default function MainScreen() {
                   {
                     translateY: centerButtonAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, -160],
+                      outputRange: [0, 100],
                     }),
                   },
                   {
@@ -341,11 +342,12 @@ export default function MainScreen() {
               activeOpacity={0.8}
             >
               <LinearGradient
-                colors={['#FF8A00', '#FF6E40']}
+                colors={['rgba(255, 138, 0, 0.4)', 'rgba(255, 110, 64, 0.3)']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.fanButtonInner}
               >
+                <View style={styles.glassOverlay} />
                 <View style={styles.fanButtonGlow} />
                 <Mic color={AuraColors.white} size={24} />
               </LinearGradient>
@@ -363,13 +365,13 @@ export default function MainScreen() {
                   {
                     translateX: rightButtonAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, 110],
+                      outputRange: [0, 100],
                     }),
                   },
                   {
                     translateY: rightButtonAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, -110],
+                      outputRange: [0, 100],
                     }),
                   },
                   {
@@ -388,11 +390,12 @@ export default function MainScreen() {
               activeOpacity={0.8}
             >
               <LinearGradient
-                colors={['#FF8A00', '#FF6E40']}
+                colors={['rgba(255, 138, 0, 0.4)', 'rgba(255, 110, 64, 0.3)']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.fanButtonInner}
               >
+                <View style={styles.glassOverlay} />
                 <View style={styles.fanButtonGlow} />
                 <Sparkles color={AuraColors.white} size={24} />
               </LinearGradient>
@@ -528,15 +531,15 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: 'rgba(255, 138, 0, 0.35)',
     borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.25)',
+    borderColor: 'rgba(255, 138, 0, 0.4)',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: AuraColors.accentOrange,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
+    shadowOpacity: 0.6,
+    shadowRadius: 24,
     elevation: 8,
   },
   fanButton: {
@@ -563,6 +566,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    overflow: 'hidden',
     shadowColor: AuraColors.accentOrange,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.8,
@@ -612,5 +618,14 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     borderRadius: 1.5,
   },
-
+  glassOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 30,
+  },
 });
+
