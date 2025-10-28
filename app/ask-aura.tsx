@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Keyboard, PanResponder, TouchableWithoutFeedback, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, Mic, ArrowUp } from 'lucide-react-native';
+import { X, Mic, ArrowUp, History } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useJournal } from '@/contexts/JournalContext';
 import { AuraColors } from '@/constants/colors';
@@ -21,10 +21,33 @@ export default function AskAuraScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<string[]>([]);
   const scrollViewRef = useRef<ScrollView>(null);
+  const historyAnim = useRef(new Animated.Value(-300)).current;
+  const inputAnim = useRef(new Animated.Value(0)).current;
 
   const inputRef = useRef<TextInput>(null);
   
+  const toggleHistory = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    setShowHistory(!showHistory);
+    Animated.spring(historyAnim, {
+      toValue: !showHistory ? 0 : -300,
+      useNativeDriver: true,
+      damping: 20,
+      stiffness: 120,
+    }).start();
+  };
+
+  const selectHistoryItem = (item: string) => {
+    setQuery(item);
+    toggleHistory();
+    inputRef.current?.focus();
+  };
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -44,12 +67,24 @@ export default function AskAuraScreen() {
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
       (e) => {
         setKeyboardHeight(e.endCoordinates.height);
+        Animated.spring(inputAnim, {
+          toValue: -e.endCoordinates.height,
+          useNativeDriver: true,
+          damping: 15,
+          stiffness: 150,
+        }).start();
       }
     );
     const keyboardWillHide = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
       () => {
         setKeyboardHeight(0);
+        Animated.spring(inputAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          damping: 15,
+          stiffness: 150,
+        }).start();
       }
     );
 
@@ -57,7 +92,7 @@ export default function AskAuraScreen() {
       keyboardWillShow.remove();
       keyboardWillHide.remove();
     };
-  }, []);
+  }, [inputAnim]);
 
   const handleSend = async () => {
     if (!query.trim()) return;
@@ -68,6 +103,12 @@ export default function AskAuraScreen() {
 
     const userQuery = query.trim();
     setQuery('');
+    Keyboard.dismiss();
+    
+    setHistory(prev => {
+      const newHistory = [userQuery, ...prev.filter(h => h !== userQuery)];
+      return newHistory.slice(0, 20);
+    });
     
     const newMessages = [...messages, { role: 'user' as const, content: userQuery }];
     setMessages(newMessages);
@@ -207,6 +248,9 @@ export default function AskAuraScreen() {
       
       <View style={[styles.content, { paddingTop: insets.top + 16 }]}>
         <View style={styles.header}>
+          <TouchableOpacity onPress={toggleHistory} style={styles.historyButton}>
+            <History color={colors.text} size={24} />
+          </TouchableOpacity>
           <Text style={styles.title}>Ask AURA</Text>
           <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
             <X color={colors.text} size={28} />
@@ -217,7 +261,7 @@ export default function AskAuraScreen() {
           <View style={styles.logoContainer} {...panResponder.panHandlers}>
             <View style={styles.logoWrapper}>
               <Image 
-                source={{ uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/2fkj0mco5kwmu34f2d41n' }}
+                source={{ uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/nucrtwbaqeja2anws0t6d' }}
                 style={styles.logoImage}
                 resizeMode="contain"
               />
@@ -256,7 +300,7 @@ export default function AskAuraScreen() {
           </View>
         )}
         
-        <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 16 }]}>
+        <Animated.View style={[styles.inputContainer, { paddingBottom: insets.bottom + 16, transform: [{ translateY: inputAnim }] }]}>
           <View style={styles.searchBarWrapper}>
             <LinearGradient
               colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)']}
@@ -315,8 +359,53 @@ export default function AskAuraScreen() {
               </View>
             </LinearGradient>
           </View>
-        </View>
+        </Animated.View>
       </View>
+      
+      {showHistory && (
+        <TouchableOpacity 
+          style={StyleSheet.absoluteFill} 
+          activeOpacity={1} 
+          onPress={toggleHistory}
+        >
+          <View style={styles.historyOverlay} />
+        </TouchableOpacity>
+      )}
+      
+      <Animated.View style={[styles.historyPanel, { transform: [{ translateX: historyAnim }] }]}>
+        <LinearGradient
+          colors={[colors.gradientStart, colors.gradientEnd]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.historyGradient}
+        >
+          <View style={[styles.historyContent, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.historyHeader}>
+              <History color={AuraColors.accentOrange} size={24} />
+              <Text style={styles.historyTitle}>History</Text>
+            </View>
+            
+            <ScrollView style={styles.historyScroll} showsVerticalScrollIndicator={false}>
+              {history.length === 0 ? (
+                <Text style={styles.historyEmpty}>No search history yet</Text>
+              ) : (
+                history.map((item, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.historyItem}
+                    onPress={() => selectHistoryItem(item)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.historyItemText} numberOfLines={2}>
+                      {item}
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </LinearGradient>
+      </Animated.View>
       </KeyboardAvoidingView>
     </TouchableWithoutFeedback>
   );
@@ -484,5 +573,62 @@ const createStyles = (colors: any) => StyleSheet.create({
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  historyButton: {
+    padding: 8,
+  },
+  historyOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  historyPanel: {
+    position: 'absolute',
+    left: -300,
+    top: 0,
+    bottom: 0,
+    width: 300,
+    zIndex: 1000,
+  },
+  historyGradient: {
+    flex: 1,
+  },
+  historyContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 20,
+  },
+  historyTitle: {
+    fontSize: 24,
+    fontWeight: '700' as const,
+    color: colors.text,
+  },
+  historyScroll: {
+    flex: 1,
+  },
+  historyEmpty: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 40,
+  },
+  historyItem: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+  },
+  historyItemText: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: colors.text,
+    lineHeight: 20,
   },
 });

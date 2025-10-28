@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useRef } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView, PanResponder, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Mic, Calendar, Settings, Brain, TrendingUp, Target, Zap } from 'lucide-react-native';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 
@@ -13,9 +12,6 @@ export default function MainScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   
-  const [showArrow, setShowArrow] = useState<boolean>(true);
-
-  const arrowAnim = useRef(new Animated.Value(0)).current;
   const leftGlowAnim = useRef(new Animated.Value(0.3)).current;
   const rightGlowAnim = useRef(new Animated.Value(0.3)).current;
 
@@ -53,28 +49,10 @@ export default function MainScreen() {
     })
   ).current;
 
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(arrowAnim, {
-          toValue: 1,
-          duration: 1200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(arrowAnim, {
-          toValue: 0,
-          duration: 1200,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, [arrowAnim]);
-
   const handleRecording = () => {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    setShowArrow(false);
     router.push('/recording');
   };
 
@@ -91,16 +69,6 @@ export default function MainScreen() {
     }
     router.push('/settings');
   };
-
-  const arrowTranslateY = arrowAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 10],
-  });
-
-  const arrowOpacity = arrowAnim.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [0.3, 1, 0.3],
-  });
 
   const styles = createStyles(colors);
   
@@ -134,7 +102,7 @@ export default function MainScreen() {
       <View style={[styles.content, { paddingTop: insets.top + 16 }]}>
         <View style={styles.header}>
           <Image 
-            source={{ uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/2fkj0mco5kwmu34f2d41n' }}
+            source={{ uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/nucrtwbaqeja2anws0t6d' }}
             style={styles.titleImage}
             resizeMode="contain"
           />
@@ -158,7 +126,12 @@ export default function MainScreen() {
               <TouchableOpacity 
                 style={styles.categoryBox}
                 activeOpacity={0.7}
-                onPress={() => console.log('Insights')}
+                onPress={() => {
+                  if (Platform.OS !== 'web') {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                  router.push('/insights');
+                }}
               >
                 <View style={styles.categoryGlow} />
                 <View style={styles.categoryContent}>
@@ -171,7 +144,12 @@ export default function MainScreen() {
               <TouchableOpacity 
                 style={styles.categoryBox}
                 activeOpacity={0.7}
-                onPress={() => console.log('Goals')}
+                onPress={() => {
+                  if (Platform.OS !== 'web') {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                  router.push('/goals');
+                }}
               >
                 <View style={styles.categoryGlow} />
                 <View style={styles.categoryContent}>
@@ -186,7 +164,12 @@ export default function MainScreen() {
               <TouchableOpacity 
                 style={styles.categoryBox}
                 activeOpacity={0.7}
-                onPress={() => console.log('Analytics')}
+                onPress={() => {
+                  if (Platform.OS !== 'web') {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                  router.push('/analytics');
+                }}
               >
                 <View style={styles.categoryGlow} />
                 <View style={styles.categoryContent}>
@@ -199,7 +182,12 @@ export default function MainScreen() {
               <TouchableOpacity 
                 style={styles.categoryBox}
                 activeOpacity={0.7}
-                onPress={() => console.log('Quick Actions')}
+                onPress={() => {
+                  if (Platform.OS !== 'web') {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                  router.push('/actions');
+                }}
               >
                 <View style={styles.categoryGlow} />
                 <View style={styles.categoryContent}>
@@ -211,23 +199,7 @@ export default function MainScreen() {
             </View>
           </View>
 
-          <View style={styles.recordingSection}>
-            {showArrow && (
-              <View style={styles.arrowContainer}>
-                <Animated.View
-                  style={[{
-                    opacity: arrowOpacity,
-                    transform: [{ translateY: arrowTranslateY }],
-                  }]}
-                >
-                  <View style={styles.arrowIcon}>
-                    <View style={styles.arrowLine} />
-                    <View style={styles.arrowHead} />
-                  </View>
-                </Animated.View>
-              </View>
-            )}
-          </View>
+          <View style={styles.recordingSection} />
         </ScrollView>
 
         <View style={[styles.buttonContainer, { paddingBottom: insets.bottom + 40 }]}>
@@ -340,14 +312,16 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: AuraColors.accentOrange,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: AuraColors.accentOrange,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
   },
   leftGlow: {
     position: 'absolute',
@@ -371,28 +345,5 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     borderRadius: 1.5,
   },
-  arrowContainer: {
-    alignItems: 'center',
-    paddingVertical: 60,
-  },
-  arrowIcon: {
-    alignItems: 'center',
-  },
-  arrowLine: {
-    width: 3,
-    height: 40,
-    backgroundColor: AuraColors.accentOrange,
-    borderRadius: 1.5,
-    marginBottom: -2,
-  },
-  arrowHead: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 12,
-    borderRightWidth: 12,
-    borderTopWidth: 16,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderTopColor: AuraColors.accentOrange,
-  },
+
 });
