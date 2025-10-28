@@ -60,10 +60,10 @@ export default function MainScreen() {
         leftGlowAnim.setValue(0);
         rightGlowAnim.setValue(0);
         
-        if (gestureState.dx < -100) {
+        if (gestureState.dx > 100) {
           router.push('/journal');
-        } else if (gestureState.dx > 100) {
-          handleAsk();
+        } else if (gestureState.dx < -100) {
+          router.push('/ask-aura');
         }
       },
     })
@@ -391,7 +391,6 @@ export default function MainScreen() {
     if (!recording) return;
 
     try {
-      setRecordingState('processing');
       console.log('Stopping recording...');
       
       if (transcriptionInterval.current) {
@@ -410,10 +409,12 @@ export default function MainScreen() {
       setRecording(null);
       recordingRef.current = null;
       setCurrentWord('');
+      setRecordingState('idle');
+      setRecordingDuration(0);
 
       if (uri) {
         const finalTranscript = accumulatedTranscript || null;
-        await transcribeAndSaveAudio(uri, finalTranscript);
+        transcribeAndSaveAudio(uri, finalTranscript);
       }
     } catch (error) {
       console.error('Failed to stop recording:', error);
@@ -536,7 +537,7 @@ export default function MainScreen() {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    console.log('Ask AI feature - Coming soon!');
+    router.push('/ask-aura');
   };
 
   const handleCalendar = () => {
@@ -782,12 +783,7 @@ export default function MainScreen() {
             </>
           )}
 
-          {recordingState === 'processing' && (
-            <View style={styles.processingContainer}>
-              <Text style={styles.processingText}>Processing recording...</Text>
-              <Text style={styles.processingSubtext}>Transcribing with AI</Text>
-            </View>
-          )}
+
 
           {recordingState === 'idle' && showArrow && (
             <View style={styles.arrowContainer}>
