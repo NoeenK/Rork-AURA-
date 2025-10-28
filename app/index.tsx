@@ -21,6 +21,7 @@ export default function MainScreen() {
   const leftButtonAnim = useRef(new Animated.Value(0)).current;
   const centerButtonAnim = useRef(new Animated.Value(0)).current;
   const rightButtonAnim = useRef(new Animated.Value(0)).current;
+  const mainButtonRotation = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     async function loadFont() {
@@ -96,6 +97,12 @@ export default function MainScreen() {
       Animated.spring(rightButtonAnim, {
         toValue,
         delay: 100,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+      Animated.spring(mainButtonRotation, {
+        toValue,
         tension: 50,
         friction: 7,
         useNativeDriver: true,
@@ -258,22 +265,6 @@ export default function MainScreen() {
         </ScrollView>
 
         <View style={[styles.buttonContainer, { paddingBottom: insets.bottom + 40 }]}>
-          <TouchableOpacity
-            style={styles.mainMicButton}
-            onPress={toggleMenu}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={['#FF6E40', '#FF8A00']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.mainMicButtonGradient}
-            >
-              <View style={styles.mainMicGlow} />
-              <Mic color={AuraColors.white} size={32} />
-            </LinearGradient>
-          </TouchableOpacity>
-
           <Animated.View
             style={[
               styles.fanButton,
@@ -284,7 +275,13 @@ export default function MainScreen() {
                   {
                     translateX: leftButtonAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, -95],
+                      outputRange: [0, -110],
+                    }),
+                  },
+                  {
+                    translateY: leftButtonAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -110],
                     }),
                   },
                   {
@@ -303,14 +300,15 @@ export default function MainScreen() {
               activeOpacity={0.8}
             >
               <LinearGradient
-                colors={['#FF6E40', '#FF8A00']}
+                colors={['#FF8A00', '#FF6E40']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.fanButtonInner}
               >
                 <View style={styles.fanButtonGlow} />
-                <BookOpen color={AuraColors.white} size={26} strokeWidth={2} />
+                <BookOpen color={AuraColors.white} size={24} />
               </LinearGradient>
+              <Text style={styles.fanButtonLabel}>Journal</Text>
             </TouchableOpacity>
           </Animated.View>
 
@@ -321,6 +319,12 @@ export default function MainScreen() {
               {
                 opacity: centerButtonAnim,
                 transform: [
+                  {
+                    translateY: centerButtonAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -160],
+                    }),
+                  },
                   {
                     scale: centerButtonAnim.interpolate({
                       inputRange: [0, 1],
@@ -333,18 +337,19 @@ export default function MainScreen() {
           >
             <TouchableOpacity
               style={styles.fanButtonTouchable}
-              onPress={toggleMenu}
+              onPress={() => handleNavigation('/recording')}
               activeOpacity={0.8}
             >
               <LinearGradient
-                colors={['#FFFFFF', '#F5F5F5']}
+                colors={['#FF8A00', '#FF6E40']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={styles.centerButtonInner}
+                style={styles.fanButtonInner}
               >
-                <View style={styles.centerButtonGlow} />
-                <X color="#333333" size={28} strokeWidth={2.5} />
+                <View style={styles.fanButtonGlow} />
+                <Mic color={AuraColors.white} size={24} />
               </LinearGradient>
+              <Text style={styles.fanButtonLabel}>Record</Text>
             </TouchableOpacity>
           </Animated.View>
 
@@ -358,7 +363,13 @@ export default function MainScreen() {
                   {
                     translateX: rightButtonAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, 95],
+                      outputRange: [0, 110],
+                    }),
+                  },
+                  {
+                    translateY: rightButtonAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -110],
                     }),
                   },
                   {
@@ -377,14 +388,40 @@ export default function MainScreen() {
               activeOpacity={0.8}
             >
               <LinearGradient
-                colors={['#FF6E40', '#FF8A00']}
+                colors={['#FF8A00', '#FF6E40']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.fanButtonInner}
               >
                 <View style={styles.fanButtonGlow} />
-                <Sparkles color={AuraColors.white} size={26} strokeWidth={2} />
+                <Sparkles color={AuraColors.white} size={24} />
               </LinearGradient>
+              <Text style={styles.fanButtonLabel}>Ask Aura</Text>
+            </TouchableOpacity>
+          </Animated.View>
+
+          <Animated.View
+            style={{
+              transform: [
+                {
+                  rotate: mainButtonRotation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0deg', '45deg'],
+                  }),
+                },
+              ],
+            }}
+          >
+            <TouchableOpacity
+              style={styles.mainMicButton}
+              onPress={toggleMenu}
+              activeOpacity={0.8}
+            >
+              {menuExpanded ? (
+                <X color={AuraColors.white} size={36} />
+              ) : (
+                <Mic color={AuraColors.white} size={36} />
+              )}
             </TouchableOpacity>
           </Animated.View>
         </View>
@@ -486,35 +523,21 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 20,
-    position: 'relative',
   },
   mainMicButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    overflow: 'hidden',
-    zIndex: 5,
-  },
-  mainMicButtonGradient: {
-    width: '100%',
-    height: '100%',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
-  },
-  mainMicGlow: {
-    position: 'absolute',
-    top: -12,
-    left: -12,
-    right: -12,
-    bottom: -12,
-    borderRadius: 47,
-    backgroundColor: '#FF7A3D',
-    opacity: 0.5,
-    shadowColor: '#FF7A3D',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 30,
+    shadowColor: AuraColors.accentOrange,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
   },
   fanButton: {
     position: 'absolute',
@@ -534,48 +557,38 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
   },
   fanButtonInner: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    shadowColor: AuraColors.accentOrange,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.8,
+    shadowRadius: 24,
+    elevation: 12,
   },
   fanButtonGlow: {
     position: 'absolute',
-    top: -15,
-    left: -15,
-    right: -15,
-    bottom: -15,
-    borderRadius: 46,
-    backgroundColor: '#FF7A3D',
-    opacity: 0.6,
-    shadowColor: '#FF7A3D',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 35,
-  },
-  centerButtonInner: {
-    width: 66,
-    height: 66,
-    borderRadius: 33,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  centerButtonGlow: {
-    position: 'absolute',
-    top: -18,
-    left: -18,
-    right: -18,
-    bottom: -18,
-    borderRadius: 51,
-    backgroundColor: '#FFFFFF',
-    opacity: 0.4,
-    shadowColor: '#FFFFFF',
+    top: -8,
+    left: -8,
+    right: -8,
+    bottom: -8,
+    borderRadius: 38,
+    backgroundColor: AuraColors.accentOrange,
+    opacity: 0.3,
+    shadowColor: AuraColors.accentOrange,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
-    shadowRadius: 30,
+    shadowRadius: 20,
+  },
+  fanButtonLabel: {
+    marginTop: 8,
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: colors.text,
+    textAlign: 'center',
   },
   leftGlow: {
     position: 'absolute',
