@@ -2,8 +2,15 @@ const SONIOX_API_KEY = '14f5b7c577d9b2c6f1c29351700ec4c9f233684dfdf27f67909a3226
 const SONIOX_WEBSOCKET_URL = 'wss://stt-rt.soniox.com/transcribe-websocket';
 const OPENAI_API_KEY = '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';
 
+export interface TranscriptionToken {
+  text: string;
+  speaker?: string;
+  language?: string;
+  is_final: boolean;
+}
+
 export interface TranscriptionCallback {
-  onTranscript: (text: string, isFinal: boolean) => void;
+  onTranscript: (text: string, isFinal: boolean, tokens?: TranscriptionToken[]) => void;
   onError: (error: Error) => void;
 }
 
@@ -11,12 +18,14 @@ export class SonioxRealtimeTranscription {
   private ws: WebSocket | null = null;
   private callbacks: TranscriptionCallback | null = null;
   private isConnected = false;
-  private finalTokens: any[] = [];
+  private finalTokens: TranscriptionToken[] = [];
+  private nonFinalTokens: TranscriptionToken[] = [];
   private accumulatedText = '';
 
   async connect(callbacks: TranscriptionCallback): Promise<void> {
     this.callbacks = callbacks;
     this.finalTokens = [];
+    this.nonFinalTokens = [];
     this.accumulatedText = '';
 
     try {
@@ -33,7 +42,7 @@ export class SonioxRealtimeTranscription {
           model: 'stt-rt-v3',
           language_hints: ['en', 'es'],
           enable_language_identification: true,
-          enable_speaker_diarization: false,
+          enable_speaker_diarization: true,
           enable_endpoint_detection: true,
           audio_format: 'pcm_s16le',
           sample_rate: 16000,
@@ -56,7 +65,7 @@ export class SonioxRealtimeTranscription {
           }
 
           if (data.tokens) {
-            let nonFinalTokens: any[] = [];
+            this.nonFinalTokens = [];
             
             for (const token of data.tokens) {
               if (token.text) {
@@ -64,16 +73,16 @@ export class SonioxRealtimeTranscription {
                   this.finalTokens.push(token);
                   this.accumulatedText += token.text;
                 } else {
-                  nonFinalTokens.push(token);
+                  this.nonFinalTokens.push(token);
                 }
               }
             }
 
-            const allTokens = [...this.finalTokens, ...nonFinalTokens];
+            const allTokens = [...this.finalTokens, ...this.nonFinalTokens];
             const fullText = allTokens.map(t => t.text).join('');
             
-            const hasNonFinal = nonFinalTokens.length > 0;
-            this.callbacks?.onTranscript(fullText, !hasNonFinal);
+            const hasNonFinal = this.nonFinalTokens.length > 0;
+            this.callbacks?.onTranscript(fullText, !hasNonFinal, allTokens);
             
             if (hasNonFinal) {
               console.log('Live transcript:', fullText);
@@ -82,7 +91,7 @@ export class SonioxRealtimeTranscription {
 
           if (data.finished) {
             console.log('Soniox session finished');
-            this.callbacks?.onTranscript(this.accumulatedText, true);
+            this.callbacks?.onTranscript(this.accumulatedText, true, this.finalTokens);
           }
         } catch (error) {
           console.error('Error parsing Soniox WebSocket message:', error);

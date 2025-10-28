@@ -5,7 +5,7 @@ import { Square } from 'lucide-react-native';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
-import { transcribeAudioFile, generateSummary, generateAuraSummary, extractCalendarEvents, SonioxRealtimeTranscription } from '@/lib/soniox-transcription';
+import { transcribeAudioFile, generateSummary, generateAuraSummary, extractCalendarEvents, SonioxRealtimeTranscription, TranscriptionToken } from '@/lib/soniox-transcription';
 import * as Haptics from 'expo-haptics';
 import { useJournal } from '@/contexts/JournalContext';
 import { router } from 'expo-router';
@@ -20,16 +20,15 @@ export default function RecordingScreen() {
   
   const [recordingState, setRecordingState] = useState<RecordingState>('recording');
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [liveTranscript, setLiveTranscript] = useState<string>('');
+
+  const [transcriptionTokens, setTranscriptionTokens] = useState<TranscriptionToken[]>([]);
   const [accumulatedTranscript, setAccumulatedTranscript] = useState<string>('');
-  const [currentWord, setCurrentWord] = useState<string>('');
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const [isPaused, setIsPaused] = useState<boolean>(false);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const waveAnims = useRef(
-    Array.from({ length: 40 }, () => new Animated.Value(0.3))
-  ).current;
+  const heartbeatScale = useRef(new Animated.Value(1)).current;
+  const heartbeatOpacity = useRef(new Animated.Value(0.6)).current;
 
   const durationInterval = useRef<number | null>(null);
   const transcriptionInterval = useRef<number | null>(null);
@@ -54,42 +53,76 @@ export default function RecordingScreen() {
     ).start();
   }, [pulseAnim]);
 
-  const startWaveAnimation = useCallback(() => {
-    const animations = waveAnims.map((anim, index) => {
-      const offset = index * 0.1;
-      return Animated.loop(
-        Animated.sequence([
-          Animated.timing(anim, {
-            toValue: 0.3 + Math.random() * 0.7,
-            duration: 300 + Math.random() * 200,
-            useNativeDriver: false,
-            delay: offset * 100,
+  const startHeartbeatAnimation = useCallback(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(heartbeatScale, {
+            toValue: 1.2,
+            duration: 150,
+            useNativeDriver: true,
           }),
-          Animated.timing(anim, {
-            toValue: 0.2 + Math.random() * 0.3,
-            duration: 300 + Math.random() * 200,
-            useNativeDriver: false,
+          Animated.timing(heartbeatOpacity, {
+            toValue: 1,
+            duration: 150,
+            useNativeDriver: true,
           }),
-        ])
-      );
-    });
-
-    animations.forEach((animation, index) => {
-      setTimeout(() => animation.start(), index * 20);
-    });
-  }, [waveAnims]);
+        ]),
+        Animated.parallel([
+          Animated.timing(heartbeatScale, {
+            toValue: 1,
+            duration: 150,
+            useNativeDriver: true,
+          }),
+          Animated.timing(heartbeatOpacity, {
+            toValue: 0.6,
+            duration: 150,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(heartbeatScale, {
+            toValue: 1.15,
+            duration: 120,
+            useNativeDriver: true,
+          }),
+          Animated.timing(heartbeatOpacity, {
+            toValue: 0.9,
+            duration: 120,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(heartbeatScale, {
+            toValue: 1,
+            duration: 120,
+            useNativeDriver: true,
+          }),
+          Animated.timing(heartbeatOpacity, {
+            toValue: 0.6,
+            duration: 120,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.delay(600),
+      ])
+    ).start();
+  }, [heartbeatScale, heartbeatOpacity]);
 
   const stopAnimations = useCallback(() => {
     pulseAnim.stopAnimation();
     pulseAnim.setValue(1);
-    waveAnims.forEach((anim) => {
-      anim.stopAnimation();
-      anim.setValue(0.3);
-    });
-  }, [pulseAnim, waveAnims]);
+    heartbeatScale.stopAnimation();
+    heartbeatScale.setValue(1);
+    heartbeatOpacity.stopAnimation();
+    heartbeatOpacity.setValue(0.6);
+  }, [pulseAnim, heartbeatScale, heartbeatOpacity]);
 
   useEffect(() => {
-    startRecording();
+    const initRecording = async () => {
+      await startRecording();
+    };
+    initRecording();
     return () => {
       if (recording) {
         recording.stopAndUnloadAsync();
@@ -112,7 +145,7 @@ export default function RecordingScreen() {
   useEffect(() => {
     if (recordingState === 'recording') {
       startPulseAnimation();
-      startWaveAnimation();
+      startHeartbeatAnimation();
       
       durationInterval.current = setInterval(() => {
         setRecordingDuration((prev) => prev + 1);
@@ -130,7 +163,7 @@ export default function RecordingScreen() {
         clearInterval(durationInterval.current);
       }
     };
-  }, [recordingState, startPulseAnimation, startWaveAnimation, stopAnimations]);
+  }, [recordingState, startPulseAnimation, startHeartbeatAnimation, stopAnimations]);
 
   const startRecording = async () => {
     try {
@@ -168,7 +201,6 @@ export default function RecordingScreen() {
       setRecording(newRecording);
       recordingRef.current = newRecording;
       setRecordingState('recording');
-      setLiveTranscript('');
       setAccumulatedTranscript('');
       setRecordingDuration(0);
       console.log('Recording started');
@@ -181,31 +213,25 @@ export default function RecordingScreen() {
   };
 
   const startLiveTranscription = async (rec: Audio.Recording) => {
-    setLiveTranscript('Listening...');
     
     try {
       const soniox = new SonioxRealtimeTranscription();
       sonioxClient.current = soniox;
       
       await soniox.connect({
-        onTranscript: (text: string, isFinal: boolean) => {
+        onTranscript: (text: string, isFinal: boolean, tokens?: TranscriptionToken[]) => {
           console.log('Soniox transcript:', text, 'isFinal:', isFinal);
-          setLiveTranscript(text);
+          
+          if (tokens && tokens.length > 0) {
+            setTranscriptionTokens(tokens);
+          }
           
           if (isFinal) {
             setAccumulatedTranscript(text);
           }
-          
-          const words = text.trim().split(' ');
-          if (words.length > 0 && !isFinal) {
-            setCurrentWord(words[words.length - 1]);
-          } else if (isFinal) {
-            setCurrentWord('');
-          }
         },
         onError: (error: Error) => {
           console.error('Soniox error:', error);
-          setLiveTranscript('Transcription error. Please try again.');
         },
       });
       
@@ -241,7 +267,6 @@ export default function RecordingScreen() {
       
     } catch (error) {
       console.error('Failed to start Soniox transcription:', error);
-      setLiveTranscript('Transcription unavailable');
     }
   };
 
@@ -277,7 +302,6 @@ export default function RecordingScreen() {
       
       setRecording(null);
       recordingRef.current = null;
-      setCurrentWord('');
 
       router.back();
 
@@ -388,29 +412,29 @@ export default function RecordingScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.recordingSection}>
-            <View style={styles.waveformContainer}>
-              {waveAnims.map((anim, index) => {
-                const flowOffset = (recordingDuration * 50 + index * 30) % 360;
-                
-                return (
-                  <Animated.View
-                    key={index}
-                    style={[
-                      styles.waveBar,
-                      {
-                        height: anim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [8, 100],
-                        }),
-                        backgroundColor: AuraColors.accentOrange,
-                        opacity: recordingState === 'paused' ? 0.3 : (
-                          0.4 + 0.6 * Math.abs(Math.sin((flowOffset * Math.PI) / 180))
-                        ),
-                      },
-                    ]}
-                  />
-                );
-              })}
+            <View style={styles.heartbeatContainer}>
+              <Animated.View
+                style={[
+                  styles.heartbeatPulse,
+                  {
+                    transform: [{ scale: recordingState === 'recording' ? heartbeatScale : 1 }],
+                    opacity: recordingState === 'recording' ? heartbeatOpacity : 0.3,
+                  },
+                ]}
+              >
+                <LinearGradient
+                  colors={['#FF6B35', '#FFA500']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.heartbeatGradient}
+                />
+              </Animated.View>
+              
+              <View style={styles.audioBarContainer}>
+                {[1, 2, 3, 4, 5].map((bar) => (
+                  <View key={bar} style={styles.audioBar} />
+                ))}
+              </View>
             </View>
             
             <Text style={styles.recordingDuration}>
@@ -420,31 +444,86 @@ export default function RecordingScreen() {
               <Text style={styles.pausedLabel}>PAUSED</Text>
             )}
 
-            {liveTranscript !== '' && (
-              <View style={styles.transcriptContainer}>
-                <Text style={styles.transcriptLabel}>Live Transcription</Text>
-                <ScrollView style={styles.transcriptScroll}>
-                  <Text style={styles.transcriptText}>
-                    {liveTranscript.split(' ').map((word, idx, arr) => {
-                      const isCurrentWord = idx === arr.length - 1 && word === currentWord;
-                      return (
-                        <Text
-                          key={idx}
-                          style={[
-                            styles.transcriptWord,
-                            isCurrentWord && styles.highlightedWord,
-                          ]}
-                        >
-                          {word}{idx < arr.length - 1 ? ' ' : ''}
-                        </Text>
-                      );
-                    })}
-                  </Text>
-                </ScrollView>
-              </View>
-            )}
+
           </View>
         </ScrollView>
+
+        {transcriptionTokens.length > 0 && (
+          <View style={styles.glassTranscriptBox}>
+            <LinearGradient
+              colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.glassGradient}
+            />
+            <ScrollView 
+              style={styles.glassScrollView}
+              showsVerticalScrollIndicator={false}
+            >
+              {(() => {
+                type Segment = { speaker: string; language: string; text: string };
+                const tokensBySegment: Segment[] = [];
+                let currentSegment: Segment | null = null;
+                
+                for (const token of transcriptionTokens) {
+                  const speaker = token.speaker || 'Speaker 1';
+                  const language = token.language || 'en';
+                  
+                  if (!currentSegment || currentSegment.speaker !== speaker || currentSegment.language !== language) {
+                    if (currentSegment && currentSegment.text.trim()) {
+                      tokensBySegment.push(currentSegment);
+                    }
+                    currentSegment = { speaker, language, text: token.text };
+                  } else {
+                    currentSegment.text += token.text;
+                  }
+                }
+                
+                if (currentSegment && currentSegment.text.trim()) {
+                  tokensBySegment.push(currentSegment);
+                }
+                
+                const speakerColors: Record<string, string> = {
+                  'Speaker 1': '#4CAF50',
+                  'Speaker 2': '#2196F3',
+                  'Speaker 3': '#FF5252',
+                  'Speaker 4': '#FF9800',
+                };
+                
+                const getLanguageDisplay = (lang: string): string => {
+                  const langMap: Record<string, string> = {
+                    'en': 'English',
+                    'es': 'Spanish',
+                    'fr': 'French',
+                    'de': 'German',
+                    'it': 'Italian',
+                    'pt': 'Portuguese',
+                    'ko': 'Korean',
+                    'ja': 'Japanese',
+                    'zh': 'Chinese',
+                  };
+                  return langMap[lang] || lang.toUpperCase();
+                };
+                
+                return tokensBySegment.map((segment, idx) => (
+                  <View key={idx} style={styles.transcriptSegment}>
+                    <View style={styles.segmentHeader}>
+                      <Text style={[styles.speakerLabel, { color: speakerColors[segment.speaker] || '#4CAF50' }]}>
+                        {segment.speaker.toUpperCase()}
+                      </Text>
+                      <View style={styles.languageBadge}>
+                        <Text style={styles.languageText}>
+                          {getLanguageDisplay(segment.language)}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.segmentText}>{segment.text.trim()}</Text>
+                  </View>
+                ));
+              })()}
+            </ScrollView>
+          </View>
+        )}
 
         <View style={[styles.buttonContainer, { paddingBottom: insets.bottom + 40 }]}>
           <View style={styles.recordingControls}>
@@ -645,5 +724,89 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 8,
     letterSpacing: 2,
+  },
+  heartbeatContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 150,
+    marginBottom: 32,
+  },
+  heartbeatPulse: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    overflow: 'hidden',
+  },
+  heartbeatGradient: {
+    width: '100%',
+    height: '100%',
+  },
+  audioBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 20,
+  },
+  audioBar: {
+    width: 40,
+    height: 3,
+    backgroundColor: AuraColors.accentOrange,
+    borderRadius: 2,
+    opacity: 0.7,
+  },
+  glassTranscriptBox: {
+    position: 'absolute' as const,
+    bottom: 160,
+    left: 24,
+    right: 24,
+    maxHeight: 280,
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 165, 0, 0.3)',
+    shadowColor: '#FFA500',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  glassGradient: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  glassScrollView: {
+    padding: 20,
+  },
+  transcriptSegment: {
+    marginBottom: 16,
+  },
+  segmentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 10,
+  },
+  speakerLabel: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    letterSpacing: 0.5,
+  },
+  languageBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: 'rgba(150, 150, 150, 0.3)',
+  },
+  languageText: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: colors.text,
+    opacity: 0.8,
+  },
+  segmentText: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: colors.text,
+    fontWeight: '400' as const,
   },
 });
