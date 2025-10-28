@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Platform, Modal, Animated, PanResponder } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Platform, Modal, Animated, PanResponder, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Play, Pause, RotateCcw, RotateCw, MoreVertical, Download, FileText, ChevronLeft, ChevronRight, Calendar, MapPin, User } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Audio } from 'expo-av';
+import { generateText } from '@rork/toolkit-sdk';
 
 export default function JournalScreen() {
   const insets = useSafeAreaInsets();
@@ -25,6 +26,8 @@ export default function JournalScreen() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
   const [selectedTab, setSelectedTab] = useState<'summary' | 'todo' | 'transcript'>('summary');
   const [checkedTodos, setCheckedTodos] = useState<Record<number, boolean>>({});
+  const [generatedTodos, setGeneratedTodos] = useState<Record<string, string[]>>({});
+  const [isGeneratingTodo, setIsGeneratingTodo] = useState(false);
   const tabContentOpacity = useRef(new Animated.Value(1)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
   const [showNewEntryPopup, setShowNewEntryPopup] = useState(false);
@@ -280,11 +283,43 @@ export default function JournalScreen() {
     }
   };
 
-  const handleTabPress = (tab: 'summary' | 'todo' | 'transcript') => {
+  const handleTabPress = async (tab: 'summary' | 'todo' | 'transcript') => {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     setSelectedTab(tab);
+    
+    if (tab === 'todo' && selectedFullEntry && !generatedTodos[selectedFullEntry.id] && !selectedFullEntry.auraSummary?.tasks) {
+      await generateTodoList();
+    }
+  };
+
+  const generateTodoList = async () => {
+    if (!selectedFullEntry || isGeneratingTodo) return;
+    
+    try {
+      setIsGeneratingTodo(true);
+      const prompt = `Based on this transcript, extract a list of actionable to-do items or tasks. Return only the tasks as a numbered list, one per line. If there are no clear tasks, return "No actionable items found."
+
+Transcript:
+${selectedFullEntry.transcript}`;
+      
+      const response = await generateText(prompt);
+      const tasks = response
+        .split('\n')
+        .filter(line => line.trim())
+        .map(line => line.replace(/^\d+\.\s*/, '').trim())
+        .filter(task => task && task !== 'No actionable items found.');
+      
+      setGeneratedTodos(prev => ({
+        ...prev,
+        [selectedFullEntry.id]: tasks
+      }));
+    } catch (error) {
+      console.error('Error generating todo list:', error);
+    } finally {
+      setIsGeneratingTodo(false);
+    }
   };
 
   const handleTodoToggle = (index: number) => {
@@ -462,12 +497,12 @@ export default function JournalScreen() {
                 <View style={styles.entryMetadata}>
                   <View style={styles.metadataRow}>
                     <User color={colors.textSecondary} size={16} strokeWidth={2} />
-                    <Text style={styles.metadataText}>Alejandro Garnacho</Text>
+                    <Text style={styles.metadataText}>Noeen Kashif</Text>
                   </View>
                   <View style={styles.metadataRow}>
                     <Calendar color={colors.textSecondary} size={16} strokeWidth={2} />
                     <Text style={styles.metadataText}>
-                      {selectedFullEntry.date} ({Math.floor(selectedFullEntry.duration / 60)} min)
+                      {selectedFullEntry.date} || {new Date(selectedFullEntry.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })} || {selectedFullEntry.duration < 60 ? `${selectedFullEntry.duration}s` : `${Math.floor(selectedFullEntry.duration / 60)} min`}
                     </Text>
                   </View>
                   {selectedFullEntry.location && (
@@ -513,21 +548,32 @@ export default function JournalScreen() {
                   </View>
                 )}
 
-                {selectedTab === 'todo' && selectedFullEntry.auraSummary?.tasks && selectedFullEntry.auraSummary.tasks.length > 0 && (
+                {selectedTab === 'todo' && (
                   <View style={styles.todoSection}>
-                    {selectedFullEntry.auraSummary.tasks.map((task: any, idx: number) => (
-                      <TouchableOpacity 
-                        key={idx} 
-                        style={styles.todoItem}
-                        onPress={() => handleTodoToggle(idx)}
-                        activeOpacity={0.7}
-                      >
-                        <View style={styles.todoBullet} />
-                        <Text style={[styles.todoText, checkedTodos[idx] && styles.todoTextChecked]}>
-                          {typeof task === 'string' ? task : task.task || String(task)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                    {isGeneratingTodo ? (
+                      <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="small" color={AuraColors.accentOrange} />
+                        <Text style={styles.loadingText}>Generating to-do list...</Text>
+                      </View>
+                    ) : (
+                      (selectedFullEntry.auraSummary?.tasks || generatedTodos[selectedFullEntry.id] || []).length > 0 ? (
+                        (selectedFullEntry.auraSummary?.tasks || generatedTodos[selectedFullEntry.id]).map((task: any, idx: number) => (
+                          <TouchableOpacity 
+                            key={idx} 
+                            style={styles.todoItem}
+                            onPress={() => handleTodoToggle(idx)}
+                            activeOpacity={0.7}
+                          >
+                            <View style={styles.todoBullet} />
+                            <Text style={[styles.todoText, checkedTodos[idx] && styles.todoTextChecked]}>
+                              {typeof task === 'string' ? task : task.task || String(task)}
+                            </Text>
+                          </TouchableOpacity>
+                        ))
+                      ) : (
+                        <Text style={styles.noTodoText}>No actionable items found in this recording.</Text>
+                      )
+                    )}
                   </View>
                 )}
                 
@@ -784,7 +830,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
   },
   emptyState: {
     paddingVertical: 80,
@@ -941,7 +987,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   modalContent: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
   },
   modalEntryCard: {
     backgroundColor: colors.card,
@@ -983,8 +1029,8 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
     borderRadius: 16,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     alignItems: 'center',
@@ -1001,7 +1047,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     elevation: 4,
   },
   tabButtonText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600' as const,
     color: colors.textSecondary,
   },
@@ -1122,6 +1168,26 @@ const createStyles = (colors: any) => StyleSheet.create({
   todoTextChecked: {
     textDecorationLine: 'line-through' as const,
     opacity: 0.5,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 16,
+  },
+  loadingText: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    fontWeight: '500' as const,
+  },
+  noTodoText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.textSecondary,
+    fontWeight: '500' as const,
+    fontStyle: 'italic' as const,
+    textAlign: 'center',
+    paddingVertical: 16,
   },
   transcriptSection: {
     marginTop: 8,
