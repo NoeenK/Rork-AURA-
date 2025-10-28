@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Square } from 'lucide-react-native';
@@ -390,6 +390,58 @@ export default function RecordingScreen() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const tokensBySegment = useMemo(() => {
+    if (transcriptionTokens.length === 0) {
+      return [];
+    }
+
+    type Segment = { speaker: string; language: string; text: string };
+    const segments: Segment[] = [];
+    let currentSegment: Segment | null = null;
+    
+    for (const token of transcriptionTokens) {
+      const speaker = token.speaker || 'Speaker 1';
+      const language = token.language || 'en';
+      
+      if (!currentSegment || currentSegment.speaker !== speaker || currentSegment.language !== language) {
+        if (currentSegment && currentSegment.text.trim()) {
+          segments.push(currentSegment);
+        }
+        currentSegment = { speaker, language, text: token.text };
+      } else {
+        currentSegment.text += token.text;
+      }
+    }
+    
+    if (currentSegment && currentSegment.text.trim()) {
+      segments.push(currentSegment);
+    }
+    
+    return segments;
+  }, [transcriptionTokens]);
+
+  const getLanguageDisplay = useCallback((lang: string): string => {
+    const langMap: Record<string, string> = {
+      'en': 'English',
+      'es': 'Spanish',
+      'fr': 'French',
+      'de': 'German',
+      'it': 'Italian',
+      'pt': 'Portuguese',
+      'ko': 'Korean',
+      'ja': 'Japanese',
+      'zh': 'Chinese',
+    };
+    return langMap[lang] || lang.toUpperCase();
+  }, []);
+
+  const speakerColors: Record<string, string> = {
+    'Speaker 1': '#4CAF50',
+    'Speaker 2': '#2196F3',
+    'Speaker 3': '#FF5252',
+    'Speaker 4': '#FF9800',
+  };
+
   const styles = createStyles(colors);
   
   return (
@@ -454,73 +506,27 @@ export default function RecordingScreen() {
               contentContainerStyle={styles.glassScrollContent}
               showsVerticalScrollIndicator={false}
             >
-              {transcriptionTokens.length === 0 ? (
+              {tokensBySegment.length === 0 ? (
                 <View style={styles.placeholderContainer}>
                   <Text style={styles.transcriptPlaceholder}>{liveTranscriptStatus}</Text>
                   <Text style={styles.transcriptSubtext}>Speak clearly into your microphone</Text>
                 </View>
               ) : (
-                (() => {
-                  type Segment = { speaker: string; language: string; text: string };
-                  const tokensBySegment: Segment[] = [];
-                  let currentSegment: Segment | null = null;
-                  
-                  for (const token of transcriptionTokens) {
-                    const speaker = token.speaker || 'Speaker 1';
-                    const language = token.language || 'en';
-                    
-                    if (!currentSegment || currentSegment.speaker !== speaker || currentSegment.language !== language) {
-                      if (currentSegment && currentSegment.text.trim()) {
-                        tokensBySegment.push(currentSegment);
-                      }
-                      currentSegment = { speaker, language, text: token.text };
-                    } else {
-                      currentSegment.text += token.text;
-                    }
-                  }
-                  
-                  if (currentSegment && currentSegment.text.trim()) {
-                    tokensBySegment.push(currentSegment);
-                  }
-                  
-                  const speakerColors: Record<string, string> = {
-                    'Speaker 1': '#4CAF50',
-                    'Speaker 2': '#2196F3',
-                    'Speaker 3': '#FF5252',
-                    'Speaker 4': '#FF9800',
-                  };
-                  
-                  const getLanguageDisplay = (lang: string): string => {
-                    const langMap: Record<string, string> = {
-                      'en': 'English',
-                      'es': 'Spanish',
-                      'fr': 'French',
-                      'de': 'German',
-                      'it': 'Italian',
-                      'pt': 'Portuguese',
-                      'ko': 'Korean',
-                      'ja': 'Japanese',
-                      'zh': 'Chinese',
-                    };
-                    return langMap[lang] || lang.toUpperCase();
-                  };
-                  
-                  return tokensBySegment.map((segment, idx) => (
-                    <View key={idx} style={styles.transcriptSegment}>
-                      <View style={styles.segmentHeader}>
-                        <Text style={[styles.speakerLabel, { color: speakerColors[segment.speaker] || '#4CAF50' }]}>
-                          {segment.speaker.toUpperCase()}
+                tokensBySegment.map((segment, idx) => (
+                  <View key={idx} style={styles.transcriptSegment}>
+                    <View style={styles.segmentHeader}>
+                      <Text style={[styles.speakerLabel, { color: speakerColors[segment.speaker] || '#4CAF50' }]}>
+                        {segment.speaker.toUpperCase()}
+                      </Text>
+                      <View style={styles.languageBadge}>
+                        <Text style={styles.languageText}>
+                          {getLanguageDisplay(segment.language)}
                         </Text>
-                        <View style={styles.languageBadge}>
-                          <Text style={styles.languageText}>
-                            {getLanguageDisplay(segment.language)}
-                          </Text>
-                        </View>
                       </View>
-                      <Text style={styles.segmentText}>{segment.text.trim()}</Text>
                     </View>
-                  ));
-                })()
+                    <Text style={styles.segmentText}>{segment.text.trim()}</Text>
+                  </View>
+                ))
               )}
             </ScrollView>
             </View>
