@@ -141,6 +141,8 @@ export class SonioxRealtimeTranscription {
       const blob = await response.blob();
       const arrayBuffer = await blob.arrayBuffer();
       
+      console.log('Audio file size:', arrayBuffer.byteLength, 'bytes');
+      
       const chunkSize = 3840;
       let offset = 0;
       
@@ -148,12 +150,14 @@ export class SonioxRealtimeTranscription {
         if (offset < arrayBuffer.byteLength && this.isConnected) {
           const chunk = arrayBuffer.slice(offset, offset + chunkSize);
           this.ws?.send(chunk);
+          console.log(`Sent chunk ${offset} - ${offset + chunkSize} of ${arrayBuffer.byteLength}`);
           offset += chunkSize;
           
           // Send chunks at ~120ms intervals to simulate real-time
           setTimeout(sendChunk, 120);
         } else if (offset >= arrayBuffer.byteLength) {
-          console.log('All audio chunks sent');
+          console.log('All audio chunks sent, sending end-of-audio signal');
+          this.ws?.send('');
         }
       };
       
@@ -162,6 +166,60 @@ export class SonioxRealtimeTranscription {
       console.error('Error sending audio file:', error);
       this.callbacks?.onError(error as Error);
     }
+  }
+
+  async sendAudioFileWithPolling(getUri: () => string | null, isRecording: () => boolean): Promise<void> {
+    if (!this.isConnected || !this.ws) {
+      console.warn('WebSocket not connected');
+      return;
+    }
+
+    let lastReadSize = 0;
+    const chunkSize = 3840;
+
+    const pollAndSend = async () => {
+      if (!this.isConnected || !isRecording()) {
+        console.log('Stopped polling audio file');
+        return;
+      }
+
+      try {
+        const uri = getUri();
+        if (!uri) {
+          console.log('No URI yet, will retry...');
+          setTimeout(pollAndSend, 500);
+          return;
+        }
+
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        const arrayBuffer = await blob.arrayBuffer();
+
+        if (arrayBuffer.byteLength > lastReadSize) {
+          const newData = arrayBuffer.slice(lastReadSize);
+          console.log(`New audio data: ${newData.byteLength} bytes (total: ${arrayBuffer.byteLength})`);
+          
+          // Send new data in chunks
+          let offset = 0;
+          while (offset < newData.byteLength && this.isConnected) {
+            const chunk = newData.slice(offset, offset + chunkSize);
+            this.ws?.send(chunk);
+            offset += chunkSize;
+            await new Promise(resolve => setTimeout(resolve, 30));
+          }
+
+          lastReadSize = arrayBuffer.byteLength;
+        }
+
+        // Continue polling
+        setTimeout(pollAndSend, 500);
+      } catch (error) {
+        console.error('Error polling audio file:', error);
+        setTimeout(pollAndSend, 500);
+      }
+    };
+
+    pollAndSend();
   }
 
   finishAudio(): void {

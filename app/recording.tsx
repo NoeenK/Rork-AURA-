@@ -216,39 +216,45 @@ export default function RecordingScreen() {
 
   const startLiveTranscription = async (rec: Audio.Recording) => {
     try {
-      console.log('Starting live transcription demo');
-      setLiveTranscriptStatus('Listening...');
+      console.log('Starting live transcription with Soniox');
+      setLiveTranscriptStatus('Connecting to transcription service...');
       
-      // Demo transcript tokens that will appear gradually
-      const demoTokens: TranscriptionToken[] = [
-        { text: 'Hello, ', speaker: 'Speaker 1', language: 'en', is_final: false },
-        { text: 'I am ', speaker: 'Speaker 1', language: 'en', is_final: false },
-        { text: 'recording ', speaker: 'Speaker 1', language: 'en', is_final: false },
-        { text: 'my thoughts ', speaker: 'Speaker 1', language: 'en', is_final: false },
-        { text: 'today. ', speaker: 'Speaker 1', language: 'en', is_final: true },
-        { text: 'This is ', speaker: 'Speaker 1', language: 'en', is_final: false },
-        { text: 'a test ', speaker: 'Speaker 1', language: 'en', is_final: false },
-        { text: 'of the ', speaker: 'Speaker 1', language: 'en', is_final: false },
-        { text: 'live transcription ', speaker: 'Speaker 1', language: 'en', is_final: false },
-        { text: 'feature. ', speaker: 'Speaker 1', language: 'en', is_final: true },
-      ];
+      // Initialize Soniox client
+      const client = new SonioxRealtimeTranscription();
+      sonioxClient.current = client;
       
-      let tokenIndex = 0;
-      
-      // Show tokens gradually
-      audioStreamInterval.current = setInterval(() => {
-        if (tokenIndex < demoTokens.length && recordingRef.current) {
-          const currentTokens = demoTokens.slice(0, tokenIndex + 1);
-          setTranscriptionTokens([...currentTokens]);
-          setLiveTranscriptStatus('');
-          tokenIndex++;
-        } else if (tokenIndex >= demoTokens.length) {
-          if (audioStreamInterval.current) {
-            clearInterval(audioStreamInterval.current);
-            audioStreamInterval.current = null;
+      await client.connect({
+        onTranscript: (text: string, isFinal: boolean, tokens?: TranscriptionToken[]) => {
+          if (tokens && tokens.length > 0) {
+            setTranscriptionTokens([...tokens]);
+            setLiveTranscriptStatus('');
+            console.log('Received tokens:', tokens.length, 'Text:', text.slice(0, 50));
+            
+            if (isFinal) {
+              const finalText = tokens.filter(t => t.is_final).map(t => t.text).join('');
+              setAccumulatedTranscript(prev => prev + finalText);
+            }
           }
-        }
-      }, 1000) as any;
+        },
+        onError: (error: Error) => {
+          console.error('Transcription error:', error);
+          setLiveTranscriptStatus('Transcription error. Recording will be transcribed after completion.');
+        },
+      });
+      
+      setLiveTranscriptStatus('Listening...');
+      console.log('Soniox WebSocket connected, starting audio polling');
+      
+      // Wait a moment for the recording to start writing to file
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Start polling the recording file and sending chunks
+      client.sendAudioFileWithPolling(
+        () => recordingRef.current?.getURI() || null,
+        () => recordingRef.current !== null && recordingState === 'recording'
+      );
+      
+      console.log('Audio polling started');
       
     } catch (error) {
       console.error('Failed to start live transcription:', error);
