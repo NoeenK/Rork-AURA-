@@ -5,7 +5,7 @@ import { Square } from 'lucide-react-native';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
-import { transcribeAudioFile, generateSummary, generateAuraSummary, extractCalendarEvents, SonioxRealtimeTranscription, TranscriptionToken } from '@/lib/soniox-transcription';
+import { transcribeAudioFile, transcribeAudioFileWithSpeakers, generateSummary, generateAuraSummary, extractCalendarEvents, SonioxRealtimeTranscription, TranscriptionToken, SpeakerSegment as TranscriptionSpeakerSegment } from '@/lib/soniox-transcription';
 import * as Haptics from 'expo-haptics';
 import { useJournal } from '@/contexts/JournalContext';
 import { router } from 'expo-router';
@@ -313,11 +313,14 @@ export default function RecordingScreen() {
       });
       
       let text = existingTranscript;
+      let segments: TranscriptionSpeakerSegment[] = [];
       
       if (!text || text.trim().length === 0) {
-        console.log('Transcribing full audio with Soniox...');
-        text = await transcribeAudioFile(uri);
-        console.log('Transcription completed:', text.slice(0, 100));
+        console.log('Transcribing full audio with Soniox (with speakers and translation)...');
+        const result = await transcribeAudioFileWithSpeakers(uri);
+        text = result.transcript;
+        segments = result.segments;
+        console.log('Transcription completed:', text.slice(0, 100), 'with', segments.length, 'segments');
       } else {
         console.log('Using real-time transcription from Soniox (Web)');
       }
@@ -341,6 +344,7 @@ export default function RecordingScreen() {
         title,
         audioUri: uri,
         transcript: text,
+        transcriptWithSpeakers: segments.length > 0 ? segments : undefined,
         summary,
         auraSummary,
         calendarEvents,

@@ -9,6 +9,8 @@ export interface TranscriptionToken {
   speaker?: string;
   language?: string;
   is_final: boolean;
+  translation?: string;
+  translation_status?: 'original' | 'translation';
 }
 
 export interface TranscriptionCallback {
@@ -49,6 +51,10 @@ export class SonioxRealtimeTranscription {
           enable_speaker_diarization: true,
           enable_endpoint_detection: true,
           audio_format: 'auto',
+          translation: {
+            type: 'one_way' as const,
+            target_language: 'en',
+          },
         };
 
         this.ws?.send(JSON.stringify(config));
@@ -249,6 +255,174 @@ export class SonioxRealtimeTranscription {
   }
 }
 
+export interface SpeakerSegment {
+  speaker?: string;
+  language?: string;
+  text: string;
+  translation?: string;
+}
+
+export async function transcribeAudioFileWithSpeakers(uri: string): Promise<{ transcript: string; segments: SpeakerSegment[] }> {
+  return new Promise((resolve, reject) => {
+    try {
+      console.log('[Soniox] Starting file transcription with speakers:', uri);
+      
+      const ws = new WebSocket(SONIOX_WEBSOCKET_URL);
+      let allTokens: TranscriptionToken[] = [];
+      let hasError = false;
+
+      ws.onopen = async () => {
+        console.log('[Soniox] WebSocket opened for file transcription');
+        
+        const config: any = {
+          api_key: SONIOX_API_KEY,
+          model: 'stt-rt-v3',
+          language_hints: ['en', 'es', 'fr', 'de', 'it', 'pt', 'ko', 'ja', 'zh'],
+          enable_language_identification: true,
+          enable_speaker_diarization: true,
+          enable_endpoint_detection: true,
+          audio_format: 'auto',
+          translation: {
+            type: 'one_way' as const,
+            target_language: 'en',
+          },
+        };
+
+        ws.send(JSON.stringify(config));
+        console.log('[Soniox] Config sent, streaming audio file...');
+
+        try {
+          const response = await fetch(uri);
+          const blob = await response.blob();
+          const arrayBuffer = await blob.arrayBuffer();
+          
+          console.log('[Soniox] Audio file size:', arrayBuffer.byteLength);
+          
+          const chunkSize = 3840;
+          let offset = 0;
+          
+          const sendChunk = () => {
+            if (offset < arrayBuffer.byteLength && !hasError) {
+              const chunk = arrayBuffer.slice(offset, offset + chunkSize);
+              ws.send(chunk);
+              offset += chunkSize;
+              setTimeout(sendChunk, 120);
+            } else if (offset >= arrayBuffer.byteLength) {
+              ws.send('');
+              console.log('[Soniox] All audio data sent');
+            }
+          };
+          
+          sendChunk();
+        } catch (error) {
+          console.error('[Soniox] Error reading audio file:', error);
+          hasError = true;
+          reject(error);
+        }
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data.toString());
+
+          if (data.error_code) {
+            console.error(`[Soniox] Error: ${data.error_code} - ${data.error_message}`);
+            hasError = true;
+            reject(new Error(data.error_message));
+            ws.close();
+            return;
+          }
+
+          if (data.tokens) {
+            for (const token of data.tokens) {
+              if (token.text && token.is_final) {
+                allTokens.push(token);
+              }
+            }
+          }
+
+          if (data.finished) {
+            // Group tokens into speaker segments
+            const segments: SpeakerSegment[] = [];
+            let currentSegment: SpeakerSegment | null = null;
+            
+            for (const token of allTokens) {
+              const speaker = token.speaker || '1';
+              const language = token.language || 'en';
+              const text = token.text;
+              const isTranslation = token.translation_status === 'translation';
+              
+              // Start new segment if speaker or translation status changes
+              if (!currentSegment || 
+                  currentSegment.speaker !== speaker || 
+                  (isTranslation && !currentSegment.translation) ||
+                  (!isTranslation && currentSegment.translation)) {
+                
+                if (currentSegment && currentSegment.text.trim()) {
+                  segments.push(currentSegment);
+                }
+                
+                currentSegment = {
+                  speaker,
+                  language,
+                  text: isTranslation ? '' : text,
+                  translation: isTranslation ? text : undefined,
+                };
+              } else {
+                if (isTranslation) {
+                  currentSegment.translation = (currentSegment.translation || '') + text;
+                } else {
+                  currentSegment.text += text;
+                }
+              }
+            }
+            
+            if (currentSegment && currentSegment.text.trim()) {
+              segments.push(currentSegment);
+            }
+            
+            const fullText = allTokens
+              .filter(t => t.translation_status !== 'translation')
+              .map(t => t.text)
+              .join('');
+            
+            console.log('[Soniox] Transcription completed with', segments.length, 'segments');
+            resolve({ transcript: fullText || 'No transcription available', segments });
+            ws.close();
+          }
+        } catch (error) {
+          console.error('[Soniox] Error parsing message:', error);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('[Soniox] WebSocket error:', error);
+        hasError = true;
+        reject(new Error('WebSocket error'));
+      };
+
+      ws.onclose = () => {
+        console.log('[Soniox] WebSocket closed');
+        if (!hasError && allTokens.length === 0) {
+          reject(new Error('WebSocket closed without receiving transcription'));
+        }
+      };
+
+      setTimeout(() => {
+        if (!hasError && allTokens.length === 0) {
+          hasError = true;
+          ws.close();
+          reject(new Error('Transcription timeout'));
+        }
+      }, 60000);
+
+    } catch (error) {
+      console.error('[Soniox] Transcription error:', error);
+      reject(error);
+    }
+  });
+}
+
 export async function transcribeAudioFile(uri: string): Promise<string> {
   return new Promise((resolve, reject) => {
     try {
@@ -264,11 +438,15 @@ export async function transcribeAudioFile(uri: string): Promise<string> {
         const config: any = {
           api_key: SONIOX_API_KEY,
           model: 'stt-rt-v3',
-          language_hints: ['en', 'es'],
+          language_hints: ['en', 'es', 'fr', 'de', 'it', 'pt', 'ko', 'ja', 'zh'],
           enable_language_identification: true,
-          enable_speaker_diarization: false,
+          enable_speaker_diarization: true,
           enable_endpoint_detection: true,
           audio_format: 'auto',
+          translation: {
+            type: 'one_way' as const,
+            target_language: 'en',
+          },
         };
 
         ws.send(JSON.stringify(config));

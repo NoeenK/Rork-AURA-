@@ -404,12 +404,6 @@ ${selectedFullEntry.transcript}`;
                     <Text style={styles.entrySummary} numberOfLines={2}>
                       {entry.summary}
                     </Text>
-                    <View style={styles.transcriptPreview}>
-                      <Text style={styles.transcriptLabel}>Transcript</Text>
-                      <Text style={styles.transcriptPreviewText} numberOfLines={3}>
-                        {entry.transcript}
-                      </Text>
-                    </View>
                     <Text style={styles.entryDate}>{entry.date}</Text>
                   </>
                 )}
@@ -639,9 +633,22 @@ ${selectedFullEntry.transcript}`;
                             <View style={styles.speakerTag}>
                               <View style={styles.speakerDot} />
                               <Text style={styles.speakerLabel}>Speaker {segment.speaker}</Text>
+                              {segment.language && segment.language !== 'en' && (
+                                <View style={styles.languageIndicator}>
+                                  <Text style={styles.languageIndicatorText}>
+                                    {segment.language.toUpperCase()}
+                                  </Text>
+                                </View>
+                              )}
                             </View>
                           )}
                           <Text style={styles.segmentText}>{segment.text}</Text>
+                          {segment.translation && segment.translation.trim() !== segment.text.trim() && (
+                            <View style={styles.translationContainer}>
+                              <Text style={styles.translationLabel}>English Translation:</Text>
+                              <Text style={styles.translationText}>{segment.translation}</Text>
+                            </View>
+                          )}
                         </View>
                       ))
                     ) : (
@@ -897,7 +904,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
   },
   emptyState: {
     paddingVertical: 80,
@@ -1054,12 +1061,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   modalContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
   },
   modalEntryCard: {
     backgroundColor: colors.card,
     borderRadius: 20,
-    padding: 24,
+    padding: 28,
+    marginHorizontal: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -1104,8 +1112,8 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 14,
@@ -1116,7 +1124,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderColor: 'rgba(255, 138, 0, 0.3)',
   },
   tabButtonText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600' as const,
     color: colors.textSecondary,
   },
@@ -1296,6 +1304,41 @@ const createStyles = (colors: any) => StyleSheet.create({
     lineHeight: 26,
     color: colors.text,
     fontWeight: '400' as const,
+  },
+  languageIndicator: {
+    backgroundColor: 'rgba(100, 100, 100, 0.3)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  languageIndicatorText: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+    color: colors.text,
+    opacity: 0.7,
+  },
+  translationContainer: {
+    marginTop: 12,
+    paddingLeft: 16,
+    borderLeftWidth: 3,
+    borderLeftColor: 'rgba(100, 149, 237, 0.4)',
+    paddingVertical: 8,
+  },
+  translationLabel: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: '#6495ED',
+    marginBottom: 6,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+  },
+  translationText: {
+    fontSize: 15,
+    lineHeight: 24,
+    color: colors.textSecondary,
+    fontWeight: '400' as const,
+    fontStyle: 'italic' as const,
   },
   loadingContainer: {
     flexDirection: 'row',
