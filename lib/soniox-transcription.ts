@@ -21,6 +21,7 @@ export class SonioxRealtimeTranscription {
   private isConnected = false;
   private currentTokens: string[] = [];
   private finalTokens: string[] = [];
+  private keepaliveInterval: any = null;
 
   async connect(callbacks: TranscriptionCallback): Promise<void> {
     this.callbacks = callbacks;
@@ -46,6 +47,17 @@ export class SonioxRealtimeTranscription {
         
         console.log('Sending configuration:', config);
         this.ws?.send(JSON.stringify(config));
+        
+        this.keepaliveInterval = setInterval(() => {
+          if (this.ws && this.isConnected) {
+            console.log('Sending keepalive...');
+            try {
+              this.ws.send(JSON.stringify({ type: 'keepalive' }));
+            } catch (error) {
+              console.error('Keepalive error:', error);
+            }
+          }
+        }, 15000);
       };
 
       this.ws.onmessage = (event) => {
@@ -121,6 +133,11 @@ export class SonioxRealtimeTranscription {
   }
 
   disconnect(): void {
+    if (this.keepaliveInterval) {
+      clearInterval(this.keepaliveInterval);
+      this.keepaliveInterval = null;
+    }
+    
     if (this.ws) {
       console.log('Sending empty frame to finalize...');
       try {
@@ -168,7 +185,16 @@ export async function transcribeAudioFile(uri: string): Promise<{
         else if (fileType === 'mp3') audioFormat = 'mp3';
       }
 
-      const arrayBuffer = await audioBlob.arrayBuffer();
+      if (!audioBlob || audioBlob.size === 0) {
+        throw new Error('Invalid audio file: empty or missing');
+      }
+
+      let arrayBuffer: ArrayBuffer;
+      if (typeof audioBlob.arrayBuffer === 'function') {
+        arrayBuffer = await audioBlob.arrayBuffer();
+      } else {
+        arrayBuffer = await new Response(audioBlob).arrayBuffer();
+      }
       console.log('Audio file loaded, size:', arrayBuffer.byteLength, 'format:', audioFormat);
 
       const ws = new WebSocket(SONIOX_WEBSOCKET_URL);
@@ -176,6 +202,8 @@ export async function transcribeAudioFile(uri: string): Promise<{
       let fullTranscript = '';
       const tokens: any[] = [];
 
+      let keepaliveInterval: any = null;
+      
       ws.onopen = () => {
         console.log('WebSocket connected for file transcription');
         
@@ -190,11 +218,44 @@ export async function transcribeAudioFile(uri: string): Promise<{
         console.log('Sending configuration:', config);
         ws.send(JSON.stringify(config));
 
-        console.log('Sending audio data...');
-        ws.send(arrayBuffer);
+        keepaliveInterval = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            try {
+              ws.send(JSON.stringify({ type: 'keepalive' }));
+            } catch (error) {
+              console.error('Keepalive error:', error);
+            }
+          }
+        }, 15000);
+
+        const CHUNK_SIZE = 8192;
+        let offset = 0;
         
-        console.log('Sending empty frame to finish...');
-        ws.send(new ArrayBuffer(0));
+        const sendNextChunk = () => {
+          if (offset >= arrayBuffer.byteLength) {
+            console.log('All audio data sent, sending empty frame...');
+            ws.send(new ArrayBuffer(0));
+            if (keepaliveInterval) clearInterval(keepaliveInterval);
+            return;
+          }
+          
+          const end = Math.min(offset + CHUNK_SIZE, arrayBuffer.byteLength);
+          const chunk = arrayBuffer.slice(offset, end);
+          
+          try {
+            ws.send(chunk);
+            offset = end;
+            
+            setTimeout(sendNextChunk, 50);
+          } catch (error) {
+            console.error('Error sending chunk:', error);
+            if (keepaliveInterval) clearInterval(keepaliveInterval);
+            reject(new Error('Failed to send audio data'));
+          }
+        };
+        
+        console.log('Starting audio stream, size:', arrayBuffer.byteLength);
+        setTimeout(() => sendNextChunk(), 100);
       };
 
       ws.onmessage = (event) => {
@@ -260,6 +321,9 @@ export async function transcribeAudioFile(uri: string): Promise<{
 
       ws.onclose = (event) => {
         console.log('WebSocket closed, code:', event.code, 'reason:', event.reason);
+        if (keepaliveInterval) {
+          clearInterval(keepaliveInterval);
+        }
       };
 
       setTimeout(() => {
