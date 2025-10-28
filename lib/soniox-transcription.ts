@@ -83,15 +83,16 @@ export class SonioxRealtimeTranscription {
             const nonFinalTokens = data.tokens.filter((t: any) => !t.is_final);
             
             if (finalTokens.length > 0) {
-              const speaker = finalTokens[0]?.speaker;
-              const finalText = finalTokens.map((t: any) => t.text).join(' ');
+              const speaker = finalTokens[0]?.speaker ? 'Speaker ' + finalTokens[0].speaker : undefined;
+              const mergedText = this.mergeTokens(finalTokens);
               this.finalTokens.push(...finalTokens.map((t: any) => t.text));
-              this.callbacks?.onTranscript(finalText, true, speaker);
+              this.callbacks?.onTranscript(mergedText, true, speaker);
             }
             
             if (nonFinalTokens.length > 0) {
-              const speaker = nonFinalTokens[0]?.speaker;
-              const fullText = [...this.finalTokens, ...nonFinalTokens.map((t: any) => t.text)].join(' ');
+              const speaker = nonFinalTokens[0]?.speaker ? 'Speaker ' + nonFinalTokens[0].speaker : undefined;
+              const mergedNonFinal = this.mergeTokens(nonFinalTokens);
+              const fullText = [...this.finalTokens, mergedNonFinal].join(' ');
               this.callbacks?.onTranscript(fullText, false, speaker);
             }
           }
@@ -186,6 +187,20 @@ export class SonioxRealtimeTranscription {
 
   isActive(): boolean {
     return this.isConnected;
+  }
+
+  private mergeTokens(tokens: any[]): string {
+    let mergedText = '';
+    tokens.forEach((token, i) => {
+      const text = token.text;
+      
+      if (i > 0 && !mergedText.endsWith(' ') && /^[a-z0-9]/i.test(text) && !text.startsWith(' ')) {
+        mergedText += text;
+      } else {
+        mergedText += (mergedText === '' ? '' : ' ') + text;
+      }
+    });
+    return mergedText;
   }
 }
 
@@ -323,7 +338,7 @@ export async function transcribeAudioFile(uri: string): Promise<{
             tokens.forEach((token: any) => {
               if (!token.is_final) return;
               
-              const speaker = token.speaker || 'Speaker 1';
+              const speaker = token.speaker ? 'Speaker ' + token.speaker : 'Speaker 1';
               const text = token.text || '';
               
               if (!speakerMap.has(speaker)) {
@@ -335,19 +350,22 @@ export async function transcribeAudioFile(uri: string): Promise<{
             });
             
             speakerMap.forEach((texts, speaker) => {
+              const mergedText = texts.join(' ').replace(/\s+/g, ' ').trim();
               speakers.push({
                 speaker,
-                text: texts.join(' '),
+                text: mergedText,
               });
             });
             
-            console.log('Final transcript:', fullTranscript.slice(0, 100));
+            const cleanTranscript = fullTranscript.replace(/\s+/g, ' ').trim();
+            
+            console.log('Final transcript:', cleanTranscript.slice(0, 100));
             console.log('Speakers found:', speakers.length);
             
             ws.close();
             resolve({
-              transcript: fullTranscript || 'No transcription available',
-              speakers: speakers.length > 0 ? speakers : [{ speaker: 'Speaker 1', text: fullTranscript }],
+              transcript: cleanTranscript || 'No transcription available',
+              speakers: speakers.length > 0 ? speakers : [{ speaker: 'Speaker 1', text: cleanTranscript }],
             });
           }
         } catch (error) {

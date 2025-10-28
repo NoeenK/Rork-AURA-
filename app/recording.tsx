@@ -458,26 +458,37 @@ export default function RecordingScreen() {
                 </Text>
                 <ScrollView style={styles.transcriptScroll}>
                   <Text style={styles.transcriptText}>
-                    {liveTranscript.split('\n').map((line, lineIdx) => (
-                      <Text key={lineIdx}>
-                        {line.split(' ').map((word, wordIdx, arr) => {
-                          const isCurrentWord = lineIdx === liveTranscript.split('\n').length - 1 &&
-                            wordIdx === arr.length - 1 && word === currentWord;
-                          return (
-                            <Text
-                              key={wordIdx}
-                              style={[
-                                styles.transcriptWord,
-                                isCurrentWord && styles.highlightedWord,
-                              ]}
-                            >
-                              {word}{wordIdx < arr.length - 1 ? ' ' : ''}
+                    {liveTranscript.split('\n').map((line, lineIdx) => {
+                      const speakerMatch = line.match(/^(Speaker \d+|\d+):\s*/);
+                      const hasSpeaker = !!speakerMatch;
+                      const displayLine = hasSpeaker ? line : line;
+                      
+                      return (
+                        <Text key={lineIdx}>
+                          {hasSpeaker && (
+                            <Text style={styles.speakerLabel}>
+                              {speakerMatch![0]}
                             </Text>
-                          );
-                        })}
-                        {lineIdx < liveTranscript.split('\n').length - 1 ? '\n' : ''}
-                      </Text>
-                    ))}
+                          )}
+                          {displayLine.replace(/^(Speaker \d+|\d+):\s*/, '').split(' ').map((word, wordIdx, arr) => {
+                            const isCurrentWord = lineIdx === liveTranscript.split('\n').length - 1 &&
+                              wordIdx === arr.length - 1 && word === currentWord;
+                            return (
+                              <Text
+                                key={wordIdx}
+                                style={[
+                                  styles.transcriptWord,
+                                  isCurrentWord && styles.highlightedWord,
+                                ]}
+                              >
+                                {word}{wordIdx < arr.length - 1 ? ' ' : ''}
+                              </Text>
+                            );
+                          })}
+                          {lineIdx < liveTranscript.split('\n').length - 1 ? '\n\n' : ''}
+                        </Text>
+                      );
+                    })}
                   </Text>
                 </ScrollView>
               </View>
@@ -602,6 +613,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: '400' as const,
   },
   highlightedWord: {
+    color: AuraColors.accentOrange,
+    fontWeight: '700' as const,
+  },
+  speakerLabel: {
+    fontSize: 18,
+    lineHeight: 28,
     color: AuraColors.accentOrange,
     fontWeight: '700' as const,
   },
