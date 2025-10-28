@@ -5,7 +5,7 @@ import { Square } from 'lucide-react-native';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
-import { transcribeAudioFile, generateSummary, generateAuraSummary, extractCalendarEvents, transcribeAudioChunk } from '@/lib/openai-transcription';
+import { transcribeAudioFile, generateSummary, generateAuraSummary, extractCalendarEvents, SonioxRealtimeTranscription } from '@/lib/soniox-transcription';
 import * as Haptics from 'expo-haptics';
 import { useJournal } from '@/contexts/JournalContext';
 import { router } from 'expo-router';
@@ -34,6 +34,8 @@ export default function RecordingScreen() {
   const durationInterval = useRef<number | null>(null);
   const transcriptionInterval = useRef<number | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
+  const sonioxClient = useRef<SonioxRealtimeTranscription | null>(null);
+  const audioStreamInterval = useRef<number | null>(null);
 
   const startPulseAnimation = useCallback(() => {
     Animated.loop(
@@ -97,6 +99,12 @@ export default function RecordingScreen() {
       }
       if (transcriptionInterval.current) {
         clearInterval(transcriptionInterval.current);
+      }
+      if (audioStreamInterval.current) {
+        clearInterval(audioStreamInterval.current);
+      }
+      if (sonioxClient.current) {
+        sonioxClient.current.disconnect();
       }
     };
   }, []);
@@ -175,117 +183,66 @@ export default function RecordingScreen() {
   const startLiveTranscription = async (rec: Audio.Recording) => {
     setLiveTranscript('Listening...');
     
-    if (Platform.OS === 'ios') {
-      try {
-        if (typeof (global as any).SpeechRecognition !== 'undefined') {
-          const SpeechRecognition = (global as any).SpeechRecognition || (global as any).webkitSpeechRecognition;
-          const recognition = new SpeechRecognition();
-          recognition.continuous = true;
-          recognition.interimResults = true;
-          recognition.lang = 'en-US';
-          
-          recognition.onresult = (event: any) => {
-            let interimTranscript = '';
-            let finalTranscript = '';
-            
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-              const transcript = event.results[i][0].transcript;
-              if (event.results[i].isFinal) {
-                finalTranscript += transcript + ' ';
-              } else {
-                interimTranscript += transcript;
-              }
-            }
-            
-            const fullText = (accumulatedTranscript + ' ' + finalTranscript + interimTranscript).trim();
-            setLiveTranscript(fullText);
-            
-            if (finalTranscript) {
-              setAccumulatedTranscript(prev => (prev + ' ' + finalTranscript).trim());
-              const words = finalTranscript.trim().split(' ');
-              if (words.length > 0) {
-                setCurrentWord(words[words.length - 1]);
-              }
-            } else if (interimTranscript) {
-              const words = interimTranscript.trim().split(' ');
-              if (words.length > 0) {
-                setCurrentWord(words[words.length - 1]);
-              }
-            }
-          };
-          
-          recognition.onerror = (event: any) => {
-            console.error('Speech recognition error:', event.error);
-          };
-          
-          recognition.onend = () => {
-            console.log('Speech recognition ended');
-          };
-          
-          recognition.start();
-          console.log('Native speech recognition started');
-          return;
-        }
-      } catch (error) {
-        console.log('Native speech recognition not available, falling back to OpenAI:', error);
-      }
-    }
-    
-    const CHUNK_INTERVAL = 3000;
-    let lastTranscribedDuration = 0;
-    
-    transcriptionInterval.current = setInterval(async () => {
-      if (!recordingRef.current) {
-        if (transcriptionInterval.current) {
-          clearInterval(transcriptionInterval.current);
-        }
-        return;
-      }
+    try {
+      const soniox = new SonioxRealtimeTranscription();
+      sonioxClient.current = soniox;
       
-      try {
-        const status = await recordingRef.current.getStatusAsync();
-        if (!status.isRecording || status.durationMillis < 2000) {
+      await soniox.connect({
+        onTranscript: (text: string, isFinal: boolean) => {
+          console.log('Soniox transcript:', text, 'isFinal:', isFinal);
+          setLiveTranscript(text);
+          
+          if (isFinal) {
+            setAccumulatedTranscript(text);
+          }
+          
+          const words = text.trim().split(' ');
+          if (words.length > 0 && !isFinal) {
+            setCurrentWord(words[words.length - 1]);
+          } else if (isFinal) {
+            setCurrentWord('');
+          }
+        },
+        onError: (error: Error) => {
+          console.error('Soniox error:', error);
+          setLiveTranscript('Transcription error. Please try again.');
+        },
+      });
+      
+      console.log('Soniox WebSocket connected, starting audio stream...');
+      
+      audioStreamInterval.current = setInterval(async () => {
+        if (!recordingRef.current) {
+          if (audioStreamInterval.current) {
+            clearInterval(audioStreamInterval.current);
+          }
           return;
         }
         
-        if (status.durationMillis - lastTranscribedDuration < CHUNK_INTERVAL) {
-          return;
-        }
-        
-        const uri = recordingRef.current.getURI();
-        if (!uri) return;
-        
-        console.log('Transcribing chunk at', status.durationMillis / 1000, 'seconds');
-        lastTranscribedDuration = status.durationMillis;
-        
-        const chunkText = await transcribeAudioChunk(uri);
-        
-        if (chunkText && chunkText.trim()) {
-          const words = chunkText.trim().split(' ');
-          let wordIndex = 0;
+        try {
+          const status = await recordingRef.current.getStatusAsync();
+          if (!status.isRecording) {
+            return;
+          }
           
-          const wordInterval = setInterval(() => {
-            if (wordIndex < words.length) {
-              const newWord = words[wordIndex];
-              setCurrentWord(newWord);
-              setAccumulatedTranscript(prev => {
-                const newText = prev ? `${prev} ${newWord}` : newWord;
-                setLiveTranscript(newText);
-                return newText;
-              });
-              wordIndex++;
-            } else {
-              clearInterval(wordInterval);
-              setCurrentWord('');
-            }
-          }, 150);
+          const uri = recordingRef.current.getURI();
+          if (!uri) return;
           
-          console.log('Chunk transcribed:', chunkText);
+          const response = await fetch(uri);
+          const blob = await response.blob();
+          const arrayBuffer = await blob.arrayBuffer();
+          
+          const uint8Array = new Uint8Array(arrayBuffer);
+          sonioxClient.current?.sendAudio(uint8Array);
+        } catch (error) {
+          console.error('Error streaming audio to Soniox:', error);
         }
-      } catch (error) {
-        console.error('Error transcribing chunk:', error);
-      }
-    }, CHUNK_INTERVAL) as any;
+      }, 500) as any;
+      
+    } catch (error) {
+      console.error('Failed to start Soniox transcription:', error);
+      setLiveTranscript('Transcription unavailable');
+    }
   };
 
   const stopRecording = async () => {
@@ -297,6 +254,17 @@ export default function RecordingScreen() {
       if (transcriptionInterval.current) {
         clearInterval(transcriptionInterval.current);
         transcriptionInterval.current = null;
+      }
+      
+      if (audioStreamInterval.current) {
+        clearInterval(audioStreamInterval.current);
+        audioStreamInterval.current = null;
+      }
+      
+      if (sonioxClient.current) {
+        sonioxClient.current.finishAudio();
+        sonioxClient.current.disconnect();
+        sonioxClient.current = null;
       }
       
       await recording.stopAndUnloadAsync();
@@ -327,15 +295,12 @@ export default function RecordingScreen() {
     try {
       let text = existingTranscript;
       
-      if (!text || text === 'Listening...') {
-        console.log('Transcribing full audio with OpenAI Whisper...');
+      if (!text || text === 'Listening...' || text === 'Transcription error. Please try again.' || text === 'Transcription unavailable') {
+        console.log('Transcribing full audio with Soniox...');
         text = await transcribeAudioFile(uri);
         console.log('Transcription completed:', text.slice(0, 100));
       } else {
-        console.log('Using accumulated real-time transcription');
-        console.log('Verifying with final transcription...');
-        const finalText = await transcribeAudioFile(uri);
-        text = finalText.length > text.length ? finalText : text;
+        console.log('Using accumulated real-time transcription from Soniox');
       }
       
       console.log('Generating AI summary...');
