@@ -192,14 +192,35 @@ export default function AskAuraScreen() {
               type: `audio/${fileType}`,
             } as any);
 
-            const response = await fetch('https://toolkit.rork.com/stt/transcribe/', {
+            const audioEntry = formData.get('audio');
+            if (!audioEntry) {
+              console.error('No audio file found');
+              return;
+            }
+            
+            const formData2 = new FormData();
+            formData2.append('audio', audioEntry);
+            formData2.append('model', 'en_v2_medical');
+            formData2.append('enable_speaker_identification', 'true');
+
+            const response = await fetch('https://api.soniox.com/transcribe-async', {
               method: 'POST',
-              body: formData,
+              headers: {
+                'Authorization': 'Bearer 14f5b7c577d9b2c6f1c29351700ec4c9f233684dfdf27f67909a32262c896bde',
+              },
+              body: formData2,
             });
 
             const data = await response.json();
-            if (data.text) {
-              setQuery(data.text);
+            if (data.transcript) {
+              setQuery(data.transcript);
+              inputRef.current?.focus();
+            } else if (data.words && Array.isArray(data.words)) {
+              const transcript = data.words.map((w: any) => w.text).join(' ');
+              setQuery(transcript);
+              inputRef.current?.focus();
+            } else if (data.result && data.result.transcript) {
+              setQuery(data.result.transcript);
               inputRef.current?.focus();
             }
           }
