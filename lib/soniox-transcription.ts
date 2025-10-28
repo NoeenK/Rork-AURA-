@@ -1,9 +1,7 @@
 import { Platform } from 'react-native';
 
 const SONIOX_API_KEY = '14f5b7c577d9b2c6f1c29351700ec4c9f233684dfdf27f67909a32262c896bde';
-const SONIOX_API_URL = 'https://api.soniox.com/transcribe-async';
 const SONIOX_WEBSOCKET_URL = 'wss://api.soniox.com/transcribe-websocket';
-const OPENAI_API_KEY = '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';
 
 export interface TranscriptionCallback {
   onTranscript: (text: string, isFinal: boolean, speaker?: string) => void;
@@ -124,46 +122,37 @@ export async function transcribeAudioFile(uri: string): Promise<{
   try {
     console.log('Transcribing audio file with Soniox:', uri);
     
-    let audioBase64: string;
+    const formData = new FormData();
     
     if (Platform.OS === 'web') {
       const response = await fetch(uri);
       const blob = await response.blob();
-      const arrayBuffer = await blob.arrayBuffer();
-      const bytes = new Uint8Array(arrayBuffer);
-      audioBase64 = btoa(String.fromCharCode.apply(null, Array.from(bytes)));
+      formData.append('audio', blob, 'recording.webm');
     } else {
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      const reader = new FileReader();
-      audioBase64 = await new Promise((resolve, reject) => {
-        reader.onload = () => {
-          const base64 = (reader.result as string).split(',')[1];
-          resolve(base64);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
+      const uriParts = uri.split('.');
+      const fileType = uriParts[uriParts.length - 1];
+      
+      const audioFile = {
+        uri,
+        name: `recording.${fileType}`,
+        type: `audio/${fileType}`,
+      } as any;
+      
+      formData.append('audio', audioFile);
     }
 
-    const requestBody = {
-      audio: [audioBase64],
-      model: 'en_v2',
-      enable_speaker_identification: true,
-      enable_global_speaker_diarization: true,
-      include_nonfinal: false,
-    };
+    formData.append('model', 'en_v2');
+    formData.append('enable_speaker_identification', 'true');
+    formData.append('enable_global_speaker_diarization', 'true');
 
     console.log('Sending request to Soniox API...');
     
-    const response = await fetch(SONIOX_API_URL, {
+    const response = await fetch('https://api.soniox.com/transcribe-async', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': 'Bearer ' + SONIOX_API_KEY,
+        'Authorization': `Bearer ${SONIOX_API_KEY}`,
       },
-      body: JSON.stringify(requestBody),
+      body: formData,
     }).catch(err => {
       console.error('Fetch error:', err);
       throw new Error('Network request failed: ' + err.message);
@@ -278,42 +267,19 @@ export async function extractCalendarEvents(transcript: string): Promise<Calenda
       '\n\nCurrent date/time for reference: ' + now.toISOString() +
       '\nDay of week: ' + now.toLocaleDateString('en-US', { weekday: 'long' });
     
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + OPENAI_API_KEY,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: systemContent
-          },
-          {
-            role: 'user',
-            content: 'Extract calendar events from this transcript:\n\n' + transcript
-          }
-        ],
-        temperature: 0.2,
-        max_tokens: 800,
-      }),
+    const { generateText } = await import('@rork/toolkit-sdk');
+    const response = await generateText({
+      messages: [
+        {
+          role: 'user',
+          content: systemContent + '\n\nExtract calendar events from this transcript:\n\n' + transcript
+        }
+      ],
     });
 
-    console.log('Calendar events response status:', response.status);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Calendar events error response:', errorText);
-      return [];
-    }
-
-    const data = await response.json();
-    const content = data.choices[0]?.message?.content || '[]';
-    console.log('Calendar events raw response:', content);
+    console.log('Calendar events raw response:', response);
     
-    const cleanedContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const cleanedContent = response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const events = JSON.parse(cleanedContent);
     console.log('Extracted events:', events);
     
@@ -345,42 +311,19 @@ export async function generateAuraSummary(transcript: string, speakers?: Speaker
       '2. "tasks": An array of actionable tasks or to-dos mentioned (empty array if none)\n' +
       'Return ONLY valid JSON without markdown formatting.';
     
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + OPENAI_API_KEY,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: systemContent
-          },
-          {
-            role: 'user',
-            content: 'Analyze this transcript and provide an overview and tasks:\n\n' + enrichedTranscript
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 300,
-      }),
+    const { generateText } = await import('@rork/toolkit-sdk');
+    const response = await generateText({
+      messages: [
+        {
+          role: 'user',
+          content: systemContent + '\n\nAnalyze this transcript and provide an overview and tasks:\n\n' + enrichedTranscript
+        }
+      ],
     });
 
-    console.log('AURA summary response status:', response.status);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('AURA summary error response:', errorText);
-      throw new Error('AURA summary generation failed: ' + response.statusText);
-    }
-
-    const data = await response.json();
-    const content = data.choices[0]?.message?.content || '{}';
-    console.log('AURA summary raw response:', content);
+    console.log('AURA summary raw response:', response);
     
-    const cleanedContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const cleanedContent = response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const summary = JSON.parse(cleanedContent);
     console.log('AURA summary generated successfully');
     
@@ -410,41 +353,19 @@ export async function generateSummary(transcript: string, speakers?: SpeakerSegm
     const systemContent = 'You are a helpful assistant that creates concise, meaningful summaries of voice recordings. ' +
       'Create a summary that captures the key points and main ideas.' + speakerText;
     
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + OPENAI_API_KEY,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: systemContent
-          },
-          {
-            role: 'user',
-            content: 'Please create a concise summary of the following transcript:\n\n' + enrichedTranscript
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 200,
-      }),
+    const { generateText } = await import('@rork/toolkit-sdk');
+    const response = await generateText({
+      messages: [
+        {
+          role: 'user',
+          content: systemContent + '\n\nPlease create a concise summary of the following transcript:\n\n' + enrichedTranscript
+        }
+      ],
     });
 
-    console.log('Summary response status:', response.status);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Summary error response:', errorText);
-      throw new Error('Summary generation failed: ' + response.statusText);
-    }
-
-    const data = await response.json();
     console.log('Summary generated successfully');
     
-    return data.choices[0]?.message?.content || 'Summary not available';
+    return response || 'Summary not available';
   } catch (error) {
     console.error('Summary generation error:', error);
     return 'Recording from ' + new Date().toLocaleDateString();

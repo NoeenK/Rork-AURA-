@@ -50,7 +50,22 @@ export default function AnalyticsScreen() {
         return;
       }
       
-      const sortedEntries = [...entries].sort((a, b) => a.timestamp - b.timestamp);
+      const validEntries = entries.filter(e => e.timestamp && typeof e.timestamp === 'number');
+      if (validEntries.length === 0) {
+        setAnalytics({
+          totalEntries,
+          averageEntriesPerWeek: 0,
+          longestStreak: 0,
+          currentStreak: 0,
+          topEmotions: [],
+          topTopics: [],
+          insights: 'Not enough data to analyze patterns yet.',
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      const sortedEntries = [...validEntries].sort((a, b) => a.timestamp - b.timestamp);
       let currentStreak = 0;
       let longestStreak = 0;
       let tempStreak = 0;
