@@ -13,9 +13,8 @@ export interface Token {
 }
 
 export interface TranscriptionCallback {
-  onTranscript: (text: string, isFinal: boolean, speaker?: string) => void;
+  onFinalTokens: (finalTokens: Token[], nonFinalTokens: Token[]) => void;
   onError: (error: Error) => void;
-  onTokens?: (tokens: Token[]) => void;
 }
 
 export interface SpeakerSegment {
@@ -32,7 +31,7 @@ export class SonioxRealtimeTranscription {
   private isConfigured = false;
   private keepaliveInterval: any = null;
   private audioQueue: ArrayBuffer[] = [];
-  private allTokens: Token[] = [];
+  private finalTokens: Token[] = [];
   private audioContext: any = null;
   private sourceNode: any = null;
   private processorNode: any = null;
@@ -59,6 +58,7 @@ export class SonioxRealtimeTranscription {
           enable_speaker_diarization: true,
           enable_language_identification: true,
           enable_endpoint_detection: true,
+          language_hints: ['en', 'es', 'fr'],
         };
         
         console.log('Sending configuration:', config);
@@ -95,29 +95,27 @@ export class SonioxRealtimeTranscription {
           }
 
           if (data.tokens && data.tokens.length > 0) {
-            const newTokens: Token[] = data.tokens.map((t: any) => ({
-              text: t.text,
-              isFinal: t.is_final,
-              speaker: t.speaker ? 'Speaker ' + t.speaker : undefined,
-              language: t.language,
-              translationStatus: t.translation_status,
-            }));
-            
-            newTokens.forEach((token) => {
+            const currentFinalTokens: Token[] = [];
+            const currentNonFinalTokens: Token[] = [];
+
+            data.tokens.forEach((t: any) => {
+              const token: Token = {
+                text: t.text || '',
+                isFinal: t.is_final || false,
+                speaker: t.speaker ? 'Speaker ' + t.speaker : undefined,
+                language: t.language,
+                translationStatus: t.translation_status,
+              };
+
               if (token.isFinal) {
-                this.allTokens.push(token);
+                this.finalTokens.push(token);
+                currentFinalTokens.push(token);
+              } else {
+                currentNonFinalTokens.push(token);
               }
             });
-            
-            const allWithNonFinal = [...this.allTokens, ...newTokens.filter((t) => !t.isFinal)];
-            this.callbacks?.onTokens?.(allWithNonFinal);
-            
-            const finalTokensInBatch = data.tokens.filter((t: any) => t.is_final);
-            if (finalTokensInBatch.length > 0) {
-              const speaker = finalTokensInBatch[0]?.speaker ? 'Speaker ' + finalTokensInBatch[0].speaker : undefined;
-              const mergedText = this.mergeTokens(finalTokensInBatch);
-              this.callbacks?.onTranscript(mergedText, true, speaker);
-            }
+
+            this.callbacks?.onFinalTokens([...this.finalTokens], currentNonFinalTokens);
           }
 
           if (data.finished) {
@@ -299,18 +297,8 @@ export class SonioxRealtimeTranscription {
     return this.isConnected;
   }
 
-  private mergeTokens(tokens: any[]): string {
-    let mergedText = '';
-    tokens.forEach((token, i) => {
-      const text = token.text;
-      
-      if (i > 0 && !mergedText.endsWith(' ') && /^[a-z0-9]/i.test(text) && !text.startsWith(' ')) {
-        mergedText += text;
-      } else {
-        mergedText += (mergedText === '' ? '' : ' ') + text;
-      }
-    });
-    return mergedText;
+  getFinalTokens(): Token[] {
+    return [...this.finalTokens];
   }
 }
 

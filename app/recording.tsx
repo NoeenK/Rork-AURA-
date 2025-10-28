@@ -19,12 +19,10 @@ export default function RecordingScreen() {
   const { addEntry } = useJournal();
   
   const [recordingState, setRecordingState] = useState<RecordingState>('recording');
-  const [accumulatedTranscript, setAccumulatedTranscript] = useState<string>('');
-  const [currentSpeaker, setCurrentSpeaker] = useState<string>('');
-  const [speakers, setSpeakers] = useState<Map<string, string>>(new Map());
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const [isPaused, setIsPaused] = useState<boolean>(false);
-  const [tokens, setTokens] = useState<Token[]>([]);
+  const [finalTokens, setFinalTokens] = useState<Token[]>([]);
+  const [nonFinalTokens, setNonFinalTokens] = useState<Token[]>([]);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const waveAnims = useRef(
@@ -96,39 +94,31 @@ export default function RecordingScreen() {
         sonioxTranscription.current = transcriptionService;
         
         const callbacks: TranscriptionCallback = {
-          onTranscript: (text: string, isFinal: boolean, speaker?: string) => {
-            console.log('Received transcript:', text, 'Final:', isFinal, 'Speaker:', speaker);
+          onFinalTokens: (final: Token[], nonFinal: Token[]) => {
+            console.log('Received tokens - Final:', final.length, 'Non-final:', nonFinal.length);
             
-            if (speaker && speaker !== currentSpeaker) {
-              setCurrentSpeaker(speaker);
-              setSpeakers(prev => {
-                const newSpeakers = new Map(prev);
-                if (!newSpeakers.has(speaker)) {
-                  newSpeakers.set(speaker, speaker);
-                }
-                return newSpeakers;
-              });
-            }
+            setFinalTokens(final);
+            setNonFinalTokens(nonFinal);
             
-            if (isFinal) {
-              setAccumulatedTranscript(prev => {
-                const speakerPrefix = speaker ? `${speaker}: ` : '';
-                const newText = prev ? `${prev}\n\n${speakerPrefix}${text}` : `${speakerPrefix}${text}`;
-                
-                if (speaker) {
-                  speakersRef.current.push({ speaker, text });
-                }
-                
-                return newText;
-              });
-            }
+            const speakerMap = new Map<string, Token[]>();
+            final.forEach(token => {
+              const speaker = token.speaker || 'Speaker 1';
+              if (!speakerMap.has(speaker)) {
+                speakerMap.set(speaker, []);
+              }
+              speakerMap.get(speaker)!.push(token);
+            });
+            
+            const updatedSpeakers: SpeakerSegment[] = [];
+            speakerMap.forEach((tokens, speaker) => {
+              const text = tokens.map(t => t.text).join(' ').replace(/\s+/g, ' ').trim();
+              updatedSpeakers.push({ speaker, text });
+            });
+            
+            speakersRef.current = updatedSpeakers;
           },
           onError: (error: Error) => {
             console.error('Soniox transcription error:', error);
-          },
-          onTokens: (newTokens: Token[]) => {
-            console.log('Received tokens:', newTokens.length);
-            setTokens(newTokens);
           },
         };
         
@@ -144,7 +134,7 @@ export default function RecordingScreen() {
     } else {
       console.log('Live transcription unavailable on mobile');
     }
-  }, [currentSpeaker]);
+  }, []);
 
   const startRecording = useCallback(async () => {
     try {
@@ -190,7 +180,8 @@ export default function RecordingScreen() {
 
       recordingRef.current = newRecording;
       setRecordingState('recording');
-      setAccumulatedTranscript('');
+      setFinalTokens([]);
+      setNonFinalTokens([]);
       setRecordingDuration(0);
       console.log('Recording started');
 
@@ -277,9 +268,9 @@ export default function RecordingScreen() {
       router.back();
 
       if (uri) {
-        const finalTranscript = accumulatedTranscript || null;
+        const fullTranscript = finalTokens.map(t => t.text).join(' ').replace(/\s+/g, ' ').trim() || null;
         const finalSpeakers = speakersRef.current.length > 0 ? speakersRef.current : undefined;
-        transcribeAndSaveAudio(uri, finalTranscript, finalSpeakers);
+        transcribeAndSaveAudio(uri, fullTranscript, finalSpeakers);
       }
     } catch (error) {
       console.error('Failed to stop recording:', error);
@@ -368,46 +359,43 @@ export default function RecordingScreen() {
   };
 
   const getSpeakerColor = (speaker: string): string => {
-    const colors = ['#4A90E2', '#E24A90', '#90E24A', '#E2904A', '#904AE2', '#E2E24A'];
+    const colors = ['#4A90E2', '#E24A90', '#90E24A', '#E2904A', '#904AE2', '#4AE2E2'];
     const speakerNum = parseInt(speaker.replace('Speaker ', '')) || 1;
     return colors[(speakerNum - 1) % colors.length];
   };
 
   const mergeTokenText = (tokenList: Token[]): string => {
-    let result = '';
-    tokenList.forEach((token, i) => {
-      const text = token.text || '';
-      if (i === 0) {
-        result = text;
-      } else {
-        const needsSpace = !result.endsWith(' ') && !text.startsWith(' ');
-        result += needsSpace ? ' ' + text : text;
-      }
-    });
-    return result.replace(/\s+/g, ' ').trim();
+    return tokenList.map(t => t.text).join(' ').replace(/\s+/g, ' ').trim();
   };
 
   const renderTokenGroups = () => {
-    if (tokens.length === 0) return null;
+    if (finalTokens.length === 0 && nonFinalTokens.length === 0) return null;
 
-    const groups: { speaker: string; tokens: Token[] }[] = [];
-    let currentGroup: { speaker: string; tokens: Token[] } | null = null;
+    type TokenGroup = { speaker: string; tokens: Token[]; isNonFinal: boolean };
+    const groups: TokenGroup[] = [];
+    
+    let currentSpeaker = '';
+    let currentTokens: Token[] = [];
 
-    tokens.forEach((token) => {
+    finalTokens.forEach((token, idx) => {
       const speaker = token.speaker || 'Speaker 1';
       
-      if (!currentGroup || currentGroup.speaker !== speaker) {
-        if (currentGroup) {
-          groups.push(currentGroup);
-        }
-        currentGroup = { speaker, tokens: [token] };
-      } else {
-        currentGroup.tokens.push(token);
+      if (speaker !== currentSpeaker && currentTokens.length > 0) {
+        groups.push({ speaker: currentSpeaker, tokens: currentTokens, isNonFinal: false });
+        currentTokens = [];
+      }
+      
+      currentSpeaker = speaker;
+      currentTokens.push(token);
+      
+      if (idx === finalTokens.length - 1) {
+        groups.push({ speaker: currentSpeaker, tokens: currentTokens, isNonFinal: false });
       }
     });
 
-    if (currentGroup) {
-      groups.push(currentGroup);
+    if (nonFinalTokens.length > 0) {
+      const nonFinalSpeaker = nonFinalTokens[0]?.speaker || 'Speaker 1';
+      groups.push({ speaker: nonFinalSpeaker, tokens: nonFinalTokens, isNonFinal: true });
     }
 
     return groups.map((group, groupIdx) => {
@@ -433,7 +421,9 @@ export default function RecordingScreen() {
                     <Text style={styles.languageBadgeText}>{originalTokens[0].language.toUpperCase()}</Text>
                   </View>
                 )}
-                <Text style={styles.originalText}>{originalText}</Text>
+                <Text style={[styles.originalText, group.isNonFinal && styles.nonFinalText]}>
+                  {originalText}
+                </Text>
               </View>
             )}
             
@@ -442,7 +432,9 @@ export default function RecordingScreen() {
                 <View style={styles.languageBadge}>
                   <Text style={styles.languageBadgeText}>EN</Text>
                 </View>
-                <Text style={styles.translatedText}>{translatedText}</Text>
+                <Text style={[styles.translatedText, group.isNonFinal && styles.nonFinalText]}>
+                  {translatedText}
+                </Text>
               </View>
             )}
           </View>
@@ -505,10 +497,10 @@ export default function RecordingScreen() {
               <Text style={styles.pausedLabel}>PAUSED</Text>
             )}
 
-            {tokens.length > 0 && (
+            {(finalTokens.length > 0 || nonFinalTokens.length > 0) && (
               <View style={styles.transcriptContainer}>
                 <Text style={styles.transcriptLabel}>
-                  LIVE TRANSCRIPTION {speakers.size > 1 ? '(' + speakers.size + ' speakers)' : ''}
+                  LIVE TRANSCRIPTION
                 </Text>
                 <ScrollView style={styles.transcriptScroll} showsVerticalScrollIndicator={false}>
                   {renderTokenGroups()}
@@ -684,6 +676,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: '#4A90E2',
     fontWeight: '400' as const,
     letterSpacing: 0.2,
+  },
+  nonFinalText: {
+    opacity: 0.5,
+    fontStyle: 'italic' as const,
   },
   scrollContent: {
     flex: 1,
