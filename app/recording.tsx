@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Square, Mic } from 'lucide-react-native';
+import { Square } from 'lucide-react-native';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
-import { transcribeAudioFile, generateSummary, generateAuraSummary, extractCalendarEvents, SpeakerSegment, SonioxRealtimeTranscription, TranscriptionCallback, Token } from '@/lib/soniox-transcription';
+import { transcribeAudioFile, generateSummary, generateAuraSummary, extractCalendarEvents, transcribeAudioChunk, SpeakerSegment, SonioxRealtimeTranscription, TranscriptionCallback } from '@/lib/soniox-transcription';
 import * as Haptics from 'expo-haptics';
 import { useJournal } from '@/contexts/JournalContext';
 import { router } from 'expo-router';
 import { Audio } from 'expo-av';
-import { BlurView } from 'expo-blur';
 
 type RecordingState = 'recording' | 'paused';
 
@@ -20,12 +19,14 @@ export default function RecordingScreen() {
   const { addEntry } = useJournal();
   
   const [recordingState, setRecordingState] = useState<RecordingState>('recording');
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [liveTranscript, setLiveTranscript] = useState<string>('');
+  const [accumulatedTranscript, setAccumulatedTranscript] = useState<string>('');
+  const [currentWord, setCurrentWord] = useState<string>('');
+  const [currentSpeaker, setCurrentSpeaker] = useState<string>('');
+  const [speakers, setSpeakers] = useState<Map<string, string>>(new Map());
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const [isPaused, setIsPaused] = useState<boolean>(false);
-  const [finalTokens, setFinalTokens] = useState<Token[]>([]);
-  const [nonFinalTokens, setNonFinalTokens] = useState<Token[]>([]);
-  const transcriptBoxOpacity = useRef(new Animated.Value(1)).current;
-  const transcriptBoxScale = useRef(new Animated.Value(1)).current;
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const waveAnims = useRef(
@@ -90,79 +91,55 @@ export default function RecordingScreen() {
   }, [pulseAnim, waveAnims]);
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.spring(transcriptBoxScale, {
-        toValue: 1,
-        friction: 8,
-        tension: 40,
-        useNativeDriver: true,
-      }),
-      Animated.timing(transcriptBoxOpacity, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [transcriptBoxOpacity, transcriptBoxScale]);
-
-  const startLiveTranscription = useCallback(async () => {
-    
-    if (Platform.OS === 'web') {
-      try {
-        const transcriptionService = new SonioxRealtimeTranscription();
-        sonioxTranscription.current = transcriptionService;
-        
-        const callbacks: TranscriptionCallback = {
-          onFinalTokens: (final: Token[], nonFinal: Token[]) => {
-            console.log('Received tokens - Final:', final.length, 'Non-final:', nonFinal.length);
-            
-            setFinalTokens(final);
-            setNonFinalTokens(nonFinal);
-            
-            const speakerMap = new Map<string, Token[]>();
-            final.forEach(token => {
-              const speaker = token.speaker || 'Speaker 1';
-              if (!speakerMap.has(speaker)) {
-                speakerMap.set(speaker, []);
-              }
-              speakerMap.get(speaker)!.push(token);
-            });
-            
-            const updatedSpeakers: SpeakerSegment[] = [];
-            speakerMap.forEach((tokens, speaker) => {
-              const text = tokens.map(t => t.text).join(' ').replace(/\s+/g, ' ').trim();
-              updatedSpeakers.push({ speaker, text });
-            });
-            
-            speakersRef.current = updatedSpeakers;
-          },
-          onError: (error: Error) => {
-            console.error('Soniox transcription error:', error);
-          },
-        };
-        
-        await transcriptionService.connect(callbacks);
-        console.log('Soniox WebSocket connected');
-        
-        await transcriptionService.startAudioCapture();
-        console.log('Audio capture started with speaker diarization, language ID, and endpoint detection');
-        
-      } catch (error) {
-        console.error('Failed to start web live transcription:', error);
+    startRecording();
+    return () => {
+      if (recording) {
+        recording.stopAndUnloadAsync().catch(console.error);
       }
-    } else {
-      console.log('Live transcription unavailable on mobile');
-    }
+      if (durationInterval.current) {
+        clearInterval(durationInterval.current);
+      }
+      if (transcriptionInterval.current) {
+        clearInterval(transcriptionInterval.current);
+      }
+      Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+      }).catch(console.error);
+    };
   }, []);
 
-  const startRecording = useCallback(async () => {
+  useEffect(() => {
+    if (recordingState === 'recording') {
+      startPulseAnimation();
+      startWaveAnimation();
+      
+      durationInterval.current = setInterval(() => {
+        setRecordingDuration((prev) => prev + 1);
+      }, 1000) as any;
+    } else if (recordingState === 'paused') {
+      stopAnimations();
+      if (durationInterval.current) {
+        clearInterval(durationInterval.current);
+        durationInterval.current = null;
+      }
+    }
+
+    return () => {
+      if (durationInterval.current) {
+        clearInterval(durationInterval.current);
+      }
+    };
+  }, [recordingState, startPulseAnimation, startWaveAnimation, stopAnimations]);
+
+  const startRecording = async () => {
     try {
-      if (recordingRef.current) {
+      if (recording) {
         try {
-          await recordingRef.current.stopAndUnloadAsync();
+          await recording.stopAndUnloadAsync();
         } catch (e) {
           console.log('Error stopping previous recording:', e);
         }
+        setRecording(null);
         recordingRef.current = null;
       }
 
@@ -197,69 +174,80 @@ export default function RecordingScreen() {
         },
       });
 
+      setRecording(newRecording);
       recordingRef.current = newRecording;
       setRecordingState('recording');
-      setFinalTokens([]);
-      setNonFinalTokens([]);
+      setLiveTranscript('');
+      setAccumulatedTranscript('');
       setRecordingDuration(0);
       console.log('Recording started');
 
-      startLiveTranscription();
+      startLiveTranscription(newRecording);
     } catch (error) {
       console.error('Failed to start recording:', error);
       router.back();
     }
-  }, [startLiveTranscription]);
+  };
 
-  useEffect(() => {
-    startRecording();
-    return () => {
-      if (recordingRef.current) {
-        recordingRef.current.stopAndUnloadAsync()
-          .catch(error => {
-            console.log('Cleanup recording error (safe to ignore):', error.message);
-          });
-      }
-      if (durationInterval.current) {
-        clearInterval(durationInterval.current);
-      }
-      if (transcriptionInterval.current) {
-        clearInterval(transcriptionInterval.current);
-      }
-      if (sonioxTranscription.current) {
-        sonioxTranscription.current.disconnect();
-      }
-      Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-      }).catch(console.error);
-    };
-  }, [startRecording]);
-
-  useEffect(() => {
-    if (recordingState === 'recording') {
-      startPulseAnimation();
-      startWaveAnimation();
+  const startLiveTranscription = async (rec: Audio.Recording) => {
+    setLiveTranscript('Listening...');
+    
+    try {
+      const transcriptionService = new SonioxRealtimeTranscription();
+      sonioxTranscription.current = transcriptionService;
       
-      durationInterval.current = setInterval(() => {
-        setRecordingDuration((prev) => prev + 1);
-      }, 1000) as any;
-    } else if (recordingState === 'paused') {
-      stopAnimations();
-      if (durationInterval.current) {
-        clearInterval(durationInterval.current);
-        durationInterval.current = null;
-      }
+      const callbacks: TranscriptionCallback = {
+        onTranscript: (text: string, isFinal: boolean, speaker?: string) => {
+          console.log('Received transcript:', text, 'Final:', isFinal, 'Speaker:', speaker);
+          
+          if (speaker && speaker !== currentSpeaker) {
+            setCurrentSpeaker(speaker);
+            setSpeakers(prev => {
+              const newSpeakers = new Map(prev);
+              if (!newSpeakers.has(speaker)) {
+                newSpeakers.set(speaker, speaker);
+              }
+              return newSpeakers;
+            });
+          }
+          
+          if (isFinal) {
+            setAccumulatedTranscript(prev => {
+              const speakerPrefix = speaker ? speaker + ': ' : '';
+              const newText = prev ? prev + '\n' + speakerPrefix + text : speakerPrefix + text;
+              setLiveTranscript(newText);
+              
+              if (speaker) {
+                speakersRef.current.push({ speaker, text });
+              }
+              
+              return newText;
+            });
+            setCurrentWord('');
+          } else {
+            const words = text.trim().split(' ');
+            if (words.length > 0) {
+              setCurrentWord(words[words.length - 1]);
+            }
+            const speakerPrefix = speaker ? speaker + ': ' : '';
+            setLiveTranscript(accumulatedTranscript + (accumulatedTranscript ? '\n' : '') + speakerPrefix + text);
+          }
+        },
+        onError: (error: Error) => {
+          console.error('Soniox transcription error:', error);
+        },
+      };
+      
+      await transcriptionService.connect(callbacks);
+      console.log('Soniox live transcription started');
+    } catch (error) {
+      console.error('Failed to start Soniox transcription:', error);
+      setLiveTranscript('Transcription unavailable');
     }
-
-    return () => {
-      if (durationInterval.current) {
-        clearInterval(durationInterval.current);
-      }
-    };
-  }, [recordingState, startPulseAnimation, startWaveAnimation, stopAnimations]);
+  };
 
   const stopRecording = async () => {
-    if (!recordingRef.current) return;
+    if (!recording) return;
 
     try {
       console.log('Stopping recording...');
@@ -270,36 +258,31 @@ export default function RecordingScreen() {
       }
       
       if (sonioxTranscription.current) {
-        console.log('Disconnecting Soniox and flushing final tokens...');
         sonioxTranscription.current.disconnect();
-        await new Promise(resolve => setTimeout(resolve, 500));
         sonioxTranscription.current = null;
       }
       
-      const uri = recordingRef.current.getURI();
-      await recordingRef.current.stopAndUnloadAsync();
-      console.log('Recording stopped, URI:', uri);
-      
+      await recording.stopAndUnloadAsync();
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
       });
-      
-      recordingRef.current = null;
 
-      if (uri) {
-        const fullTranscript = finalTokens.map(t => t.text).join(' ').replace(/\s+/g, ' ').trim() || null;
-        const finalSpeakers = speakersRef.current.length > 0 ? speakersRef.current : undefined;
-        console.log('Final transcript collected:', fullTranscript?.slice(0, 100));
-        console.log('Final speakers:', finalSpeakers);
-        console.log('Processing and generating summary...');
-        await transcribeAndSaveAudio(uri, fullTranscript, finalSpeakers);
-        console.log('Summary generation complete, navigating back...');
-      }
+      const uri = recording.getURI();
+      console.log('Recording stopped, URI:', uri);
+      
+      setRecording(null);
+      recordingRef.current = null;
+      setCurrentWord('');
 
       router.back();
+
+      if (uri) {
+        const finalTranscript = accumulatedTranscript || null;
+        const finalSpeakers = speakersRef.current.length > 0 ? speakersRef.current : undefined;
+        transcribeAndSaveAudio(uri, finalTranscript, finalSpeakers);
+      }
     } catch (error) {
       console.error('Failed to stop recording:', error);
-      recordingRef.current = null;
       router.back();
     }
   };
@@ -309,39 +292,31 @@ export default function RecordingScreen() {
       let text = existingTranscript;
       let speakerSegments = existingSpeakers;
       
-      if (!text || text.length === 0 || text === 'Listening...' || text === 'Transcription unavailable') {
-        console.log('No real-time transcript available, transcribing full audio with Soniox...');
+      if (!text || text === 'Listening...' || text === 'Transcription unavailable') {
+        console.log('Transcribing full audio with Soniox...');
         const result = await transcribeAudioFile(uri);
         text = result.transcript;
         speakerSegments = result.speakers;
-        console.log('Full audio transcription completed:', text.slice(0, 100));
+        console.log('Transcription completed:', text.slice(0, 100));
         console.log('Speaker segments:', speakerSegments);
       } else {
         console.log('Using accumulated real-time transcription with speakers');
-        console.log('Transcript length:', text.length, 'characters');
-        console.log('Speakers:', speakerSegments);
       }
       
-      if (!text || text.length === 0) {
-        console.error('No transcript available, cannot generate summary');
-        text = 'No transcript available';
-      }
-      
-      console.log('=== Generating AI summary ===');
+      console.log('Generating AI summary...');
       const summary = await generateSummary(text, speakerSegments);
-      console.log('Summary generated:', summary.slice(0, 100));
+      console.log('Summary generated:', summary);
       
-      console.log('=== Generating AURA summary ===');
+      console.log('Generating AURA summary...');
       const auraSummary = await generateAuraSummary(text, speakerSegments);
-      console.log('AURA summary generated:', JSON.stringify(auraSummary).slice(0, 100));
+      console.log('AURA summary generated:', auraSummary);
       
-      console.log('=== Extracting calendar events ===');
+      console.log('Extracting calendar events...');
       const calendarEvents = await extractCalendarEvents(text);
-      console.log('Calendar events extracted:', calendarEvents.length, 'events');
+      console.log('Calendar events extracted:', calendarEvents);
       
       const title = text.slice(0, 50) + (text.length > 50 ? '...' : '');
 
-      console.log('=== Adding entry to journal ===');
       addEntry({
         title,
         audioUri: uri,
@@ -352,37 +327,17 @@ export default function RecordingScreen() {
         date: new Date().toLocaleString(),
         duration: recordingDuration,
       });
-      console.log('Journal entry added successfully');
 
       if (Platform.OS !== 'web') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (error) {
-      console.error('Transcription/Summary error:', error);
-      
-      const fallbackText = existingTranscript || 'No transcript available';
-      const title = fallbackText.slice(0, 50) + (fallbackText.length > 50 ? '...' : '');
-      
-      console.log('Adding fallback entry to journal...');
-      addEntry({
-        title,
-        audioUri: uri,
-        transcript: fallbackText,
-        summary: 'Recording from ' + new Date().toLocaleDateString(),
-        auraSummary: {
-          overview: 'Recording captured on ' + new Date().toLocaleDateString(),
-          tasks: [],
-        },
-        calendarEvents: [],
-        date: new Date().toLocaleString(),
-        duration: recordingDuration,
-      });
-      console.log('Fallback entry added');
+      console.error('Transcription error:', error);
     }
   };
 
   const handlePause = async () => {
-    if (!recordingRef.current) return;
+    if (!recording) return;
     
     try {
       if (Platform.OS !== 'web') {
@@ -390,12 +345,12 @@ export default function RecordingScreen() {
       }
       
       if (isPaused) {
-        await recordingRef.current.startAsync();
+        await recording.startAsync();
         setIsPaused(false);
         setRecordingState('recording');
         console.log('Recording resumed');
       } else {
-        await recordingRef.current.pauseAsync();
+        await recording.pauseAsync();
         setIsPaused(true);
         setRecordingState('paused');
         console.log('Recording paused');
@@ -409,118 +364,6 @@ export default function RecordingScreen() {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const getSpeakerColor = (speaker: string): string => {
-    const colors = ['#4A90E2', '#E24A90', '#90E24A', '#E2904A', '#904AE2', '#4AE2E2'];
-    const speakerNum = parseInt(speaker.replace('Speaker ', '')) || 1;
-    return colors[(speakerNum - 1) % colors.length];
-  };
-
-  const mergeTokenText = (tokenList: Token[]): string => {
-    let result = '';
-    tokenList.forEach((token, idx) => {
-      const text = token.text;
-      if (idx === 0) {
-        result = text;
-      } else {
-        const prevToken = tokenList[idx - 1];
-        const prevText = prevToken?.text || '';
-        
-        // Add space intelligently
-        if (prevText.endsWith(' ') || text.startsWith(' ')) {
-          result += text;
-        } else if (/[.!?,;:]$/.test(prevText) || /^[.!?,;:]/.test(text)) {
-          result += text;
-        } else {
-          result += ' ' + text.trim();
-        }
-      }
-    });
-    return result.replace(/\s+/g, ' ').trim();
-  };
-
-  const renderTokenGroups = () => {
-    if (finalTokens.length === 0 && nonFinalTokens.length === 0) return null;
-
-    type TokenGroup = { speaker: string; tokens: Token[]; isNonFinal: boolean };
-    const groups: TokenGroup[] = [];
-    
-    let currentSpeaker = '';
-    let currentTokens: Token[] = [];
-
-    finalTokens.forEach((token, idx) => {
-      const speaker = token.speaker || 'Speaker 1';
-      
-      if (speaker !== currentSpeaker) {
-        if (currentTokens.length > 0) {
-          groups.push({ speaker: currentSpeaker, tokens: currentTokens, isNonFinal: false });
-        }
-        currentSpeaker = speaker;
-        currentTokens = [token];
-      } else {
-        currentTokens.push(token);
-      }
-      
-      if (idx === finalTokens.length - 1) {
-        groups.push({ speaker: currentSpeaker, tokens: currentTokens, isNonFinal: false });
-      }
-    });
-
-    if (nonFinalTokens.length > 0) {
-      const nonFinalSpeaker = nonFinalTokens[0]?.speaker || 'Speaker 1';
-      const lastGroup = groups[groups.length - 1];
-      
-      if (lastGroup && lastGroup.speaker === nonFinalSpeaker) {
-        lastGroup.tokens.push(...nonFinalTokens);
-      } else {
-        groups.push({ speaker: nonFinalSpeaker, tokens: nonFinalTokens, isNonFinal: true });
-      }
-    }
-
-    return groups.map((group, groupIdx) => {
-      const speakerColor = getSpeakerColor(group.speaker);
-      
-      const originalTokens = group.tokens.filter((t) => !t.translationStatus || t.translationStatus === 'original');
-      const translationTokens = group.tokens.filter((t) => t.translationStatus === 'translation');
-      
-      const originalText = mergeTokenText(originalTokens);
-      const translatedText = mergeTokenText(translationTokens);
-      
-      return (
-        <View key={groupIdx} style={styles.transcriptGroup}>
-          <View style={[styles.speakerBadge, { backgroundColor: speakerColor }]}>
-            <Text style={styles.speakerBadgeText}>{group.speaker}</Text>
-          </View>
-          
-          <View style={styles.transcriptBlock}>
-            {originalText.length > 0 && (
-              <View style={styles.transcriptLine}>
-                {originalTokens[0]?.language && (
-                  <View style={styles.languageBadge}>
-                    <Text style={styles.languageBadgeText}>{originalTokens[0].language.toUpperCase()}</Text>
-                  </View>
-                )}
-                <Text style={[styles.originalText, group.isNonFinal && styles.nonFinalText]}>
-                  {originalText}
-                </Text>
-              </View>
-            )}
-            
-            {translatedText.length > 0 && (
-              <View style={styles.transcriptLine}>
-                <View style={styles.languageBadge}>
-                  <Text style={styles.languageBadgeText}>EN</Text>
-                </View>
-                <Text style={[styles.translatedText, group.isNonFinal && styles.nonFinalText]}>
-                  {translatedText}
-                </Text>
-              </View>
-            )}
-          </View>
-        </View>
-      );
-    });
   };
 
   const styles = createStyles(colors);
@@ -577,45 +420,37 @@ export default function RecordingScreen() {
               <Text style={styles.pausedLabel}>PAUSED</Text>
             )}
 
-            <Animated.View
-              style={[
-                styles.transcriptContainerWrapper,
-                {
-                  opacity: transcriptBoxOpacity,
-                  transform: [{ scale: transcriptBoxScale }],
-                },
-              ]}
-            >
-              {Platform.OS === 'web' ? (
-                <View style={styles.transcriptContainer}>
-                  <View style={styles.transcriptHeader}>
-                    <Mic size={14} color="#FF6B35" />
-                    <Text style={styles.transcriptLabel}>LIVE TRANSCRIPTION</Text>
-                  </View>
-                  <ScrollView style={styles.transcriptScroll} showsVerticalScrollIndicator={false}>
-                    {finalTokens.length === 0 && nonFinalTokens.length === 0 ? (
-                      <Text style={styles.placeholderText}>Waiting for speech...</Text>
-                    ) : (
-                      renderTokenGroups()
-                    )}
-                  </ScrollView>
-                </View>
-              ) : (
-                <BlurView intensity={15} style={styles.transcriptContainer}>
-                  <View style={styles.transcriptHeader}>
-                    <Mic size={14} color="#FF6B35" />
-                    <Text style={styles.transcriptLabel}>LIVE TRANSCRIPTION</Text>
-                  </View>
-                  <ScrollView style={styles.transcriptScroll} showsVerticalScrollIndicator={false}>
-                    {finalTokens.length === 0 && nonFinalTokens.length === 0 ? (
-                      <Text style={styles.placeholderText}>Waiting for speech...</Text>
-                    ) : (
-                      renderTokenGroups()
-                    )}
-                  </ScrollView>
-                </BlurView>
-              )}
-            </Animated.View>
+            {liveTranscript !== '' && (
+              <View style={styles.transcriptContainer}>
+                <Text style={styles.transcriptLabel}>
+                  Live Transcription {speakers.size > 1 ? '(' + speakers.size + ' speakers)' : ''}
+                </Text>
+                <ScrollView style={styles.transcriptScroll}>
+                  <Text style={styles.transcriptText}>
+                    {liveTranscript.split('\n').map((line, lineIdx) => (
+                      <Text key={lineIdx}>
+                        {line.split(' ').map((word, wordIdx, arr) => {
+                          const isCurrentWord = lineIdx === liveTranscript.split('\n').length - 1 &&
+                            wordIdx === arr.length - 1 && word === currentWord;
+                          return (
+                            <Text
+                              key={wordIdx}
+                              style={[
+                                styles.transcriptWord,
+                                isCurrentWord && styles.highlightedWord,
+                              ]}
+                            >
+                              {word}{wordIdx < arr.length - 1 ? ' ' : ''}
+                            </Text>
+                          );
+                        })}
+                        {lineIdx < liveTranscript.split('\n').length - 1 ? '\n' : ''}
+                      </Text>
+                    ))}
+                  </Text>
+                </ScrollView>
+              </View>
+            )}
           </View>
         </ScrollView>
 
@@ -704,112 +539,40 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.text,
     marginBottom: 24,
   },
-  transcriptContainerWrapper: {
-    width: '100%',
-    marginTop: 20,
-  },
   transcriptContainer: {
     width: '100%',
-    maxHeight: 400,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 24,
+    maxHeight: 300,
+    backgroundColor: colors.card,
+    borderRadius: 20,
     padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    shadowColor: '#FF6B35',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-    overflow: 'hidden' as const,
-  },
-  transcriptHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
+    marginTop: 20,
   },
   transcriptLabel: {
-    fontSize: 11,
-    fontWeight: '800' as const,
-    color: 'rgba(255, 255, 255, 0.9)',
-    textTransform: 'uppercase' as const,
-    letterSpacing: 1.5,
-  },
-  placeholderText: {
     fontSize: 14,
-    fontWeight: '400' as const,
-    color: 'rgba(255, 255, 255, 0.4)',
-    fontStyle: 'italic' as const,
-    textAlign: 'center' as const,
-    marginVertical: 24,
+    fontWeight: '600' as const,
+    color: AuraColors.accentOrange,
+    marginBottom: 12,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 1,
   },
   transcriptScroll: {
-    maxHeight: 340,
+    maxHeight: 250,
   },
-  transcriptGroup: {
-    marginBottom: 14,
+  transcriptText: {
+    fontSize: 18,
+    lineHeight: 28,
+    color: colors.text,
+    fontWeight: '400' as const,
   },
-  speakerBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 3,
+  transcriptWord: {
+    fontSize: 18,
+    lineHeight: 28,
+    color: colors.text,
+    fontWeight: '400' as const,
   },
-  speakerBadgeText: {
-    fontSize: 10,
-    fontWeight: '800' as const,
-    color: '#FFF',
-    letterSpacing: 0.8,
-  },
-  transcriptBlock: {
-    gap: 6,
-  },
-  transcriptLine: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 6,
-  },
-  languageBadge: {
-    backgroundColor: 'rgba(255, 107, 53, 0.2)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    marginTop: 1,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 107, 53, 0.3)',
-  },
-  languageBadgeText: {
-    fontSize: 9,
+  highlightedWord: {
+    color: AuraColors.accentOrange,
     fontWeight: '700' as const,
-    color: 'rgba(255, 255, 255, 0.85)',
-    letterSpacing: 0.5,
-  },
-  originalText: {
-    flex: 1,
-    fontSize: 15,
-    lineHeight: 21,
-    color: 'rgba(255, 255, 255, 0.95)',
-    fontWeight: '500' as const,
-    letterSpacing: 0.3,
-  },
-  translatedText: {
-    flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
-    color: 'rgba(255, 165, 89, 0.95)',
-    fontWeight: '500' as const,
-    letterSpacing: 0.3,
-  },
-  nonFinalText: {
-    opacity: 0.45,
-    fontStyle: 'italic' as const,
   },
   scrollContent: {
     flex: 1,

@@ -1,8 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView, PanResponder } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView, PanResponder, Modal } from 'react-native';
 import * as Font from 'expo-font';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Mic, Calendar, Settings, Brain, TrendingUp, Target, Zap, BookOpen, X } from 'lucide-react-native';
+import { Mic, Calendar, Settings, Brain, TrendingUp, Target, Zap, MessageSquare, BookText } from 'lucide-react-native';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,17 +13,9 @@ export default function MainScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const [fontLoaded, setFontLoaded] = useState(false);
-  const [menuExpanded, setMenuExpanded] = useState(false);
   
   const leftGlowAnim = useRef(new Animated.Value(0.3)).current;
   const rightGlowAnim = useRef(new Animated.Value(0.3)).current;
-  
-  const expandAnim = useRef(new Animated.Value(0)).current;
-  const button1Anim = useRef(new Animated.Value(0)).current;
-  const button2Anim = useRef(new Animated.Value(0)).current;
-  const button3Anim = useRef(new Animated.Value(0)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     async function loadFont() {
@@ -74,111 +66,104 @@ export default function MainScreen() {
     })
   ).current;
 
-  const toggleMenu = () => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-    
-    if (menuExpanded) {
-      Animated.parallel([
-        Animated.timing(expandAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(button1Anim, {
-          toValue: 0,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-        Animated.timing(button2Anim, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(button3Anim, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(rotateAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start();
-      setMenuExpanded(false);
-    } else {
-      setMenuExpanded(true);
-      Animated.parallel([
-        Animated.spring(expandAnim, {
-          toValue: 1,
-          tension: 100,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-        Animated.spring(button1Anim, {
-          toValue: 1,
-          tension: 80,
-          friction: 8,
-          delay: 50,
-          useNativeDriver: true,
-        }),
-        Animated.spring(button2Anim, {
-          toValue: 1,
-          tension: 80,
-          friction: 8,
-          delay: 100,
-          useNativeDriver: true,
-        }),
-        Animated.spring(button3Anim, {
-          toValue: 1,
-          tension: 80,
-          friction: 8,
-          delay: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(rotateAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 0.95,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  };
-
-  const handleJournal = () => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-    toggleMenu();
-    setTimeout(() => router.push('/journal'), 100);
-  };
+  const [showRecordingPopup, setShowRecordingPopup] = useState(false);
+  const circleScales = useRef([new Animated.Value(0), new Animated.Value(0), new Animated.Value(0)]).current;
+  const circleOpacities = useRef([new Animated.Value(0), new Animated.Value(0), new Animated.Value(0)]).current;
+  const mainButtonRotate = useRef(new Animated.Value(0)).current;
+  const mainButtonScale = useRef(new Animated.Value(1)).current;
 
   const handleRecording = () => {
     if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    toggleMenu();
-    setTimeout(() => router.push('/recording'), 100);
+    setShowRecordingPopup(true);
+    
+    Animated.parallel([
+      Animated.timing(mainButtonRotate, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.spring(mainButtonScale, {
+        toValue: 0.9,
+        useNativeDriver: true,
+        damping: 15,
+        stiffness: 150,
+      }),
+    ]).start();
+    
+    const animations = circleScales.map((scale, index) => {
+      return Animated.parallel([
+        Animated.spring(scale, {
+          toValue: 1,
+          useNativeDriver: true,
+          damping: 15,
+          stiffness: 150,
+          delay: index * 100,
+        }),
+        Animated.timing(circleOpacities[index], {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+          delay: index * 100,
+        }),
+      ]);
+    });
+
+    Animated.stagger(100, animations).start();
   };
 
-  const handleAskAura = () => {
+  const handleRecordingOptionSelect = (option: 'record' | 'journal' | 'ask') => {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    toggleMenu();
-    setTimeout(() => router.push('/ask-aura'), 100);
+
+    const hideAnimations = circleScales.map((scale, index) => {
+      return Animated.parallel([
+        Animated.spring(scale, {
+          toValue: 0,
+          useNativeDriver: true,
+          damping: 15,
+          stiffness: 150,
+          delay: (2 - index) * 50,
+        }),
+        Animated.timing(circleOpacities[index], {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+          delay: (2 - index) * 50,
+        }),
+      ]);
+    });
+
+    Animated.parallel([
+      Animated.stagger(50, hideAnimations),
+      Animated.timing(mainButtonRotate, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.spring(mainButtonScale, {
+        toValue: 1,
+        useNativeDriver: true,
+        damping: 15,
+        stiffness: 150,
+      }),
+    ]).start(() => {
+      setShowRecordingPopup(false);
+      circleScales.forEach(s => s.setValue(0));
+      circleOpacities.forEach(o => o.setValue(0));
+      mainButtonRotate.setValue(0);
+      mainButtonScale.setValue(1);
+      
+      if (option === 'record') {
+        router.push('/recording');
+      } else if (option === 'journal') {
+        router.push('/journal');
+      } else if (option === 'ask') {
+        router.push('/ask-aura');
+      }
+    });
   };
 
   const handleCalendar = () => {
@@ -194,26 +179,6 @@ export default function MainScreen() {
     }
     router.push('/settings');
   };
-
-  const rotateInterpolate = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '45deg'],
-  });
-
-  const button1TranslateX = button1Anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -95],
-  });
-
-  const button2TranslateY = button2Anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -95],
-  });
-
-  const button3TranslateX = button3Anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 95],
-  });
 
   const styles = createStyles(colors);
   
@@ -344,126 +309,176 @@ export default function MainScreen() {
         </ScrollView>
 
         <View style={[styles.buttonContainer, { paddingBottom: insets.bottom + 40 }]}>
-          <View style={styles.menuContainer}>
-            <Animated.View 
-              style={[
-                styles.menuButton,
-                {
-                  transform: [
-                    { translateX: button1TranslateX },
-                    { scale: button1Anim },
-                  ],
-                  opacity: button1Anim,
-                },
-              ]}
+          <Animated.View
+            style={[
+              showRecordingPopup ? styles.mainMicButtonHighlighted : styles.mainMicButton,
+              {
+                transform: [
+                  { scale: mainButtonScale },
+                  {
+                    rotate: mainButtonRotate.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0deg', '45deg'],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.mainMicButtonInner}
+              onPress={handleRecording}
+              activeOpacity={0.8}
             >
-              <TouchableOpacity
-                style={styles.menuButtonInner}
-                onPress={handleJournal}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={['rgba(255, 140, 66, 0.9)', 'rgba(255, 100, 30, 0.9)']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.menuButtonGradient}
-                >
-                  <BookOpen color={AuraColors.white} size={24} strokeWidth={2.5} />
-                </LinearGradient>
-              </TouchableOpacity>
-            </Animated.View>
-
-            <Animated.View 
-              style={[
-                styles.menuButton,
-                {
-                  transform: [
-                    { translateY: button2TranslateY },
-                    { scale: button2Anim },
-                  ],
-                  opacity: button2Anim,
-                },
-              ]}
-            >
-              <TouchableOpacity
-                style={styles.menuButtonInner}
-                onPress={handleRecording}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={['rgba(255, 140, 66, 0.9)', 'rgba(255, 100, 30, 0.9)']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.menuButtonGradient}
-                >
-                  <Mic color={AuraColors.white} size={24} strokeWidth={2.5} />
-                </LinearGradient>
-              </TouchableOpacity>
-            </Animated.View>
-
-            <Animated.View 
-              style={[
-                styles.menuButton,
-                {
-                  transform: [
-                    { translateX: button3TranslateX },
-                    { scale: button3Anim },
-                  ],
-                  opacity: button3Anim,
-                },
-              ]}
-            >
-              <TouchableOpacity
-                style={styles.menuButtonInner}
-                onPress={handleAskAura}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={['rgba(255, 140, 66, 0.9)', 'rgba(255, 100, 30, 0.9)']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.menuButtonGradient}
-                >
-                  <Brain color={AuraColors.white} size={24} strokeWidth={2.5} />
-                </LinearGradient>
-              </TouchableOpacity>
-            </Animated.View>
-
-            <Animated.View
-              style={[
-                styles.mainMicButton,
-                {
-                  transform: [
-                    { rotate: rotateInterpolate },
-                    { scale: scaleAnim },
-                  ],
-                },
-              ]}
-            >
-              <TouchableOpacity
-                style={styles.mainMicButtonInner}
-                onPress={toggleMenu}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={menuExpanded 
-                    ? ['rgba(255, 255, 255, 0.95)', 'rgba(240, 240, 240, 0.95)']
-                    : ['rgba(255, 140, 66, 0.4)', 'rgba(255, 100, 30, 0.4)']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.mainButtonGradient}
-                >
-                  {menuExpanded ? (
-                    <X color={AuraColors.accentOrange} size={36} strokeWidth={3} />
-                  ) : (
-                    <Mic color={AuraColors.white} size={36} strokeWidth={2.5} />
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
-            </Animated.View>
-          </View>
+              {showRecordingPopup ? (
+                <View style={styles.cancelIcon}>
+                  <View style={styles.cancelLine1} />
+                  <View style={styles.cancelLine2} />
+                </View>
+              ) : (
+                <Mic color={AuraColors.white} size={36} />
+              )}
+            </TouchableOpacity>
+          </Animated.View>
         </View>
       </View>
+
+      {showRecordingPopup && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="none"
+          onRequestClose={() => {
+            const hideAnimations = circleScales.map((scale, index) => {
+              return Animated.parallel([
+                Animated.spring(scale, {
+                  toValue: 0,
+                  useNativeDriver: true,
+                  damping: 15,
+                  stiffness: 150,
+                  delay: (2 - index) * 50,
+                }),
+                Animated.timing(circleOpacities[index], {
+                  toValue: 0,
+                  duration: 200,
+                  useNativeDriver: true,
+                  delay: (2 - index) * 50,
+                }),
+              ]);
+            });
+            Animated.parallel([
+              Animated.stagger(50, hideAnimations),
+              Animated.timing(mainButtonRotate, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: true,
+              }),
+              Animated.spring(mainButtonScale, {
+                toValue: 1,
+                useNativeDriver: true,
+                damping: 15,
+                stiffness: 150,
+              }),
+            ]).start(() => {
+              setShowRecordingPopup(false);
+              circleScales.forEach(s => s.setValue(0));
+              circleOpacities.forEach(o => o.setValue(0));
+              mainButtonRotate.setValue(0);
+              mainButtonScale.setValue(1);
+            });
+          }}
+        >
+          <TouchableOpacity
+            style={styles.circlePopupOverlay}
+            activeOpacity={1}
+            onPress={() => {
+              const hideAnimations = circleScales.map((scale, index) => {
+                return Animated.parallel([
+                  Animated.spring(scale, {
+                    toValue: 0,
+                    useNativeDriver: true,
+                    damping: 15,
+                    stiffness: 150,
+                    delay: (2 - index) * 50,
+                  }),
+                  Animated.timing(circleOpacities[index], {
+                    toValue: 0,
+                    duration: 200,
+                    useNativeDriver: true,
+                    delay: (2 - index) * 50,
+                  }),
+                ]);
+              });
+              Animated.stagger(50, hideAnimations).start(() => {
+                setShowRecordingPopup(false);
+                circleScales.forEach(s => s.setValue(0));
+                circleOpacities.forEach(o => o.setValue(0));
+              });
+            }}
+          >
+            <View style={styles.circleContainer}>
+              <Animated.View
+                style={[
+                  styles.circleOptionSmall,
+                  {
+                    bottom: 8,
+                    left: -85,
+                    transform: [{ scale: circleScales[0] }],
+                    opacity: circleOpacities[0],
+                  },
+                ]}
+              >
+                <TouchableOpacity
+                  style={styles.circleOptionInnerSmall}
+                  onPress={() => handleRecordingOptionSelect('journal')}
+                  activeOpacity={0.8}
+                >
+                  <BookText color={AuraColors.white} size={20} />
+                </TouchableOpacity>
+              </Animated.View>
+
+              <Animated.View
+                style={[
+                  styles.circleOptionSmall,
+                  {
+                    bottom: 40,
+                    transform: [{ scale: circleScales[1] }],
+                    opacity: circleOpacities[1],
+                  },
+                ]}
+              >
+                <TouchableOpacity
+                  style={styles.circleOptionInnerSmall}
+                  onPress={() => handleRecordingOptionSelect('record')}
+                  activeOpacity={0.8}
+                >
+                  <Mic color={AuraColors.white} size={20} />
+                </TouchableOpacity>
+              </Animated.View>
+
+              <Animated.View
+                style={[
+                  styles.circleOptionSmall,
+                  {
+                    bottom: 8,
+                    right: -85,
+                    transform: [{ scale: circleScales[2] }],
+                    opacity: circleOpacities[2],
+                  },
+                ]}
+              >
+                <TouchableOpacity
+                  style={styles.circleOptionInnerSmall}
+                  onPress={() => handleRecordingOptionSelect('ask')}
+                  activeOpacity={0.8}
+                >
+                  <MessageSquare color={AuraColors.white} size={20} />
+                </TouchableOpacity>
+              </Animated.View>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -562,53 +577,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'center',
     paddingTop: 20,
   },
-  menuContainer: {
-    position: 'relative',
-    width: 80,
-    height: 80,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuButton: {
-    position: 'absolute',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-  },
-  menuButtonInner: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 30,
-  },
-  menuButtonGradient: {
-    flex: 1,
-    borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 140, 66, 0.7)',
-    shadowColor: AuraColors.accentOrange,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.6,
-    shadowRadius: 16,
-    elevation: 8,
-  },
   mainMicButton: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    position: 'absolute',
-  },
-  mainMicButtonInner: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 40,
-  },
-  mainButtonGradient: {
-    flex: 1,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 140, 66, 0.4)',
     borderWidth: 2,
     borderColor: 'rgba(255, 140, 66, 0.7)',
     shadowColor: AuraColors.accentOrange,
@@ -616,6 +589,113 @@ const createStyles = (colors: any) => StyleSheet.create({
     shadowOpacity: 0.7,
     shadowRadius: 28,
     elevation: 12,
+  },
+  mainMicButtonHighlighted: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 140, 66, 0.7)',
+    borderWidth: 3,
+    borderColor: AuraColors.accentOrange,
+    shadowColor: AuraColors.accentOrange,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 1,
+    shadowRadius: 32,
+    elevation: 16,
+  },
+  mainMicButtonInner: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 40,
+  },
+  cancelIcon: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelLine1: {
+    position: 'absolute',
+    width: 28,
+    height: 3,
+    backgroundColor: AuraColors.white,
+    borderRadius: 1.5,
+    transform: [{ rotate: '45deg' }],
+  },
+  cancelLine2: {
+    position: 'absolute',
+    width: 28,
+    height: 3,
+    backgroundColor: AuraColors.white,
+    borderRadius: 1.5,
+    transform: [{ rotate: '-45deg' }],
+  },
+  circlePopupOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  circleContainer: {
+    position: 'relative',
+    width: 300,
+    height: 300,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  circleOption: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: AuraColors.accentOrange,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  circleOptionInner: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  circleOptionText: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+    color: colors.text,
+    marginTop: 4,
+    letterSpacing: 0.5,
+    textAlign: 'center',
+  },
+  circleOptionSmall: {
+    position: 'absolute',
+    width: 65,
+    height: 65,
+    borderRadius: 32.5,
+    backgroundColor: 'rgba(255, 140, 66, 0.9)',
+    borderWidth: 2,
+    borderColor: AuraColors.accentOrange,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: AuraColors.accentOrange,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.9,
+    shadowRadius: 28,
+    elevation: 12,
+  },
+  circleOptionInnerSmall: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   leftGlow: {
     position: 'absolute',
@@ -639,4 +719,5 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     borderRadius: 1.5,
   },
+
 });
