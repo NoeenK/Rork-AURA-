@@ -10,6 +10,7 @@ import * as Haptics from 'expo-haptics';
 import { useJournal } from '@/contexts/JournalContext';
 import { router } from 'expo-router';
 import { Audio } from 'expo-av';
+import * as Location from 'expo-location';
 
 type RecordingState = 'recording' | 'paused';
 
@@ -25,6 +26,8 @@ export default function RecordingScreen() {
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [liveTranscriptStatus, setLiveTranscriptStatus] = useState<string>('Initializing...');
+  const [locationString, setLocationString] = useState<string | null>(null);
+  const [locationCoords, setLocationCoords] = useState<{ latitude: number; longitude: number; } | null>(null);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const heartbeatScale = useRef(new Animated.Value(1)).current;
@@ -58,29 +61,29 @@ export default function RecordingScreen() {
       Animated.sequence([
         Animated.parallel([
           Animated.timing(heartbeatScale, {
-            toValue: 1.08,
-            duration: 800,
+            toValue: 1.05,
+            duration: 1200,
             useNativeDriver: true,
           }),
           Animated.timing(heartbeatOpacity, {
-            toValue: 0.7,
-            duration: 800,
+            toValue: 0.6,
+            duration: 1200,
             useNativeDriver: true,
           }),
         ]),
         Animated.parallel([
           Animated.timing(heartbeatScale, {
             toValue: 1,
-            duration: 800,
+            duration: 1200,
             useNativeDriver: true,
           }),
           Animated.timing(heartbeatOpacity, {
-            toValue: 0.4,
-            duration: 800,
+            toValue: 0.3,
+            duration: 1200,
             useNativeDriver: true,
           }),
         ]),
-        Animated.delay(1200),
+        Animated.delay(1800),
       ])
     ).start();
   }, [heartbeatScale, heartbeatOpacity]);
@@ -133,6 +136,32 @@ export default function RecordingScreen() {
 
   const startRecording = useCallback(async () => {
     try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        try {
+          const location = await Location.getCurrentPositionAsync({});
+          setLocationCoords({
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+          });
+          
+          const reverseGeocode = await Location.reverseGeocodeAsync({
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+          });
+          
+          if (reverseGeocode && reverseGeocode.length > 0) {
+            const addr = reverseGeocode[0];
+            const locationStr = [addr.street, addr.city, addr.region]
+              .filter(Boolean)
+              .join(', ');
+            setLocationString(locationStr || 'Unknown location');
+          }
+        } catch (error) {
+          console.log('Location error:', error);
+        }
+      }
+      
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
@@ -318,6 +347,8 @@ export default function RecordingScreen() {
         date: new Date().toLocaleString(),
         duration: recordingDuration,
         isProcessing: false,
+        location: locationString || undefined,
+        locationCoords: locationCoords || undefined,
       });
 
       if (Platform.OS !== 'web') {
@@ -584,11 +615,11 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   recordingDuration: {
     fontSize: 48,
-    fontWeight: '700' as const,
+    fontWeight: '200' as const,
     color: colors.text,
     marginBottom: 24,
     fontFamily: 'System',
-    letterSpacing: 2,
+    letterSpacing: 4,
   },
   transcriptContainer: {
     width: '100%',
@@ -736,10 +767,10 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   glassTranscriptBox: {
     flex: 1,
-    marginTop: 32,
-    maxHeight: 180,
-    minHeight: 180,
-    borderRadius: 24,
+    marginTop: 16,
+    maxHeight: 150,
+    minHeight: 150,
+    borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255, 165, 0, 0.3)',

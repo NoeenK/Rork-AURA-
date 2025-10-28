@@ -18,11 +18,15 @@
       "bundleIdentifier": "app.rork.aura-memory-recorder",
       "infoPlist": {
         "UIBackgroundModes": [
-          "audio"
+          "audio",
+          "location"
         ],
         "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone",
         "NSCalendarsUsageDescription": "Allow $(PRODUCT_NAME) to access your calendar",
-        "NSRemindersUsageDescription": "Allow $(PRODUCT_NAME) to access your reminders"
+        "NSRemindersUsageDescription": "Allow $(PRODUCT_NAME) to access your reminders",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow $(PRODUCT_NAME) to use your location.",
+        "NSLocationAlwaysUsageDescription": "Allow $(PRODUCT_NAME) to use your location.",
+        "NSLocationWhenInUseUsageDescription": "Allow $(PRODUCT_NAME) to use your location."
       },
       "usesAppleSignIn": true
     },
@@ -36,7 +40,12 @@
         "RECORD_AUDIO",
         "android.permission.VIBRATE",
         "READ_CALENDAR",
-        "WRITE_CALENDAR"
+        "WRITE_CALENDAR",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION"
       ]
     },
     "web": {
@@ -62,6 +71,15 @@
         "expo-calendar",
         {
           "calendarPermission": "The app needs to access your calendar."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "isAndroidForegroundServiceEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isIosBackgroundLocationEnabled": true,
+          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location."
         }
       ]
     ],

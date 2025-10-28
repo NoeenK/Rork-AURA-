@@ -14,6 +14,8 @@ export interface JournalEntry {
   timestamp: number;
   duration: number;
   isProcessing?: boolean;
+  location?: string;
+  locationCoords?: { latitude: number; longitude: number; };
 }
 
 export const [JournalProvider, useJournal] = createContextHook(() => {

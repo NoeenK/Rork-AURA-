@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Platform, Modal, Animated, PanResponder } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, Play, Pause, RotateCcw, RotateCw, MoreVertical, Download, FileText, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { X, Play, Pause, RotateCcw, RotateCw, MoreVertical, Download, FileText, ChevronLeft, ChevronRight, Calendar, MapPin, User } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useJournal } from '@/contexts/JournalContext';
 import { AuraColors } from '@/constants/colors';
@@ -25,6 +25,7 @@ export default function JournalScreen() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
   const [selectedTab, setSelectedTab] = useState<'summary' | 'todo' | 'transcript'>('summary');
   const [checkedTodos, setCheckedTodos] = useState<Record<number, boolean>>({});
+  const tabContentOpacity = useRef(new Animated.Value(1)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
   const [showNewEntryPopup, setShowNewEntryPopup] = useState(false);
   const [newEntryId, setNewEntryId] = useState<string | null>(null);
@@ -454,14 +455,29 @@ export default function JournalScreen() {
               contentContainerStyle={[styles.modalContent, { paddingBottom: insets.bottom + 180 }]}
             >
               <View style={styles.modalEntryCard}>
-                <Text style={styles.entryDateTop}>{selectedFullEntry.date}</Text>
+                <Text style={styles.summaryTitle} numberOfLines={2}>
+                  {selectedFullEntry.auraSummary?.overview || selectedFullEntry.title}
+                </Text>
                 
-                <View style={styles.entryHeader}>
-                  <View style={styles.entryTitleRow}>
-                    <Text style={styles.entryTitle} numberOfLines={2}>
-                      {selectedFullEntry.title}
+                <View style={styles.entryMetadata}>
+                  <View style={styles.metadataRow}>
+                    <User color={colors.textSecondary} size={16} strokeWidth={2} />
+                    <Text style={styles.metadataText}>Alejandro Garnacho</Text>
+                  </View>
+                  <View style={styles.metadataRow}>
+                    <Calendar color={colors.textSecondary} size={16} strokeWidth={2} />
+                    <Text style={styles.metadataText}>
+                      {selectedFullEntry.date} ({Math.floor(selectedFullEntry.duration / 60)} min)
                     </Text>
                   </View>
+                  {selectedFullEntry.location && (
+                    <View style={styles.metadataRow}>
+                      <MapPin color={colors.textSecondary} size={16} strokeWidth={2} />
+                      <Text style={styles.metadataText} numberOfLines={1}>
+                        {selectedFullEntry.location}
+                      </Text>
+                    </View>
+                  )}
                 </View>
                 
                 <View style={styles.tabButtonContainer}>
@@ -937,33 +953,60 @@ const createStyles = (colors: any) => StyleSheet.create({
     shadowRadius: 12,
     elevation: 5,
   },
+  summaryTitle: {
+    fontSize: 24,
+    fontWeight: '700' as const,
+    color: colors.text,
+    lineHeight: 32,
+    marginBottom: 16,
+  },
+  entryMetadata: {
+    gap: 10,
+    marginBottom: 4,
+  },
+  metadataRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  metadataText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500' as const,
+    flex: 1,
+  },
   tabButtonContainer: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 16,
-    marginBottom: 20,
+    gap: 8,
+    marginTop: 20,
+    marginBottom: 24,
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
   tabButtonActive: {
-    backgroundColor: 'rgba(255, 165, 0, 0.2)',
-    borderColor: AuraColors.accentOrange,
+    backgroundColor: AuraColors.white,
+    borderColor: AuraColors.white,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   tabButtonText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600' as const,
     color: colors.textSecondary,
   },
   tabButtonTextActive: {
-    color: AuraColors.accentOrange,
+    color: colors.background,
     fontWeight: '700' as const,
   },
   playAudioButton: {
