@@ -236,7 +236,11 @@ export default function AskAuraScreen() {
     } else {
       try {
         if (recording) {
-          await recording.stopAndUnloadAsync();
+          try {
+            await recording.stopAndUnloadAsync();
+          } catch (e) {
+            console.log('Error stopping previous recording:', e);
+          }
           setRecording(null);
         }
 

@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 
 const SONIOX_API_KEY = '14f5b7c577d9b2c6f1c29351700ec4c9f233684dfdf27f67909a32262c896bde';
-const SONIOX_API_URL = 'https://api.soniox.com/transcribe-async';
+const SONIOX_API_URL = 'https://api.soniox.com/transcribe';
 const SONIOX_WEBSOCKET_URL = 'wss://api.soniox.com/transcribe-websocket';
 const OPENAI_API_KEY = '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';
 
@@ -124,36 +124,43 @@ export async function transcribeAudioFile(uri: string): Promise<{
   try {
     console.log('Transcribing audio file with Soniox:', uri);
     
-    const formData = new FormData();
+    let audioBase64: string;
     
     if (Platform.OS === 'web') {
       const response = await fetch(uri);
       const blob = await response.blob();
-      formData.append('audio', blob, 'recording.webm');
+      const arrayBuffer = await blob.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      audioBase64 = btoa(String.fromCharCode.apply(null, Array.from(bytes)));
     } else {
-      const uriParts = uri.split('.');
-      const fileType = uriParts[uriParts.length - 1];
-      
-      const audioFile = {
-        uri,
-        name: `recording.${fileType}`,
-        type: `audio/${fileType}`,
-      } as any;
-      
-      formData.append('audio', audioFile);
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      const reader = new FileReader();
+      audioBase64 = await new Promise((resolve, reject) => {
+        reader.onload = () => {
+          const base64 = (reader.result as string).split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
     }
 
-    formData.append('model', 'en_v2_medical');
-    formData.append('enable_speaker_identification', 'true');
-    formData.append('enable_global_speaker_diarization', 'true');
+    const requestBody = {
+      audio: audioBase64,
+      model: 'en_v2_medical',
+      enable_speaker_identification: true,
+      enable_global_speaker_diarization: true,
+    };
 
     console.log('Sending request to Soniox API...');
     const response = await fetch(SONIOX_API_URL, {
       method: 'POST',
       headers: {
-        'Authorization': 'Bearer ' + SONIOX_API_KEY,
+        'Authorization': `ApiKey ${SONIOX_API_KEY}`,
+        'Content-Type': 'application/json',
       },
-      body: formData,
+      body: JSON.stringify(requestBody),
     });
 
     console.log('Response status:', response.status);

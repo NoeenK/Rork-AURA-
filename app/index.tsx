@@ -349,27 +349,27 @@ export default function MainScreen() {
             <View style={styles.circleContainer}>
               <Animated.View
                 style={[
-                  styles.circleOption,
+                  styles.circleOptionSmall,
                   {
-                    bottom: 120,
+                    left: -100,
                     transform: [{ scale: circleScales[0] }],
                     opacity: circleOpacities[0],
                   },
                 ]}
               >
                 <TouchableOpacity
-                  style={styles.circleOptionInner}
+                  style={styles.circleOptionInnerSmall}
                   onPress={() => handleRecordingOptionSelect('journal')}
                   activeOpacity={0.8}
                 >
-                  <BookText color={AuraColors.accentOrange} size={32} />
-                  <Text style={styles.circleOptionText}>Journal</Text>
+                  <BookText color={AuraColors.white} size={24} />
+                  <Text style={styles.circleOptionTextSmall}>Journal</Text>
                 </TouchableOpacity>
               </Animated.View>
 
               <Animated.View
                 style={[
-                  styles.circleOption,
+                  styles.circleOptionSmall,
                   {
                     transform: [{ scale: circleScales[1] }],
                     opacity: circleOpacities[1],
@@ -377,32 +377,32 @@ export default function MainScreen() {
                 ]}
               >
                 <TouchableOpacity
-                  style={styles.circleOptionInner}
+                  style={styles.circleOptionInnerSmall}
                   onPress={() => handleRecordingOptionSelect('record')}
                   activeOpacity={0.8}
                 >
-                  <Mic color={AuraColors.accentOrange} size={32} />
-                  <Text style={styles.circleOptionText}>Record</Text>
+                  <Mic color={AuraColors.white} size={24} />
+                  <Text style={styles.circleOptionTextSmall}>Record</Text>
                 </TouchableOpacity>
               </Animated.View>
 
               <Animated.View
                 style={[
-                  styles.circleOption,
+                  styles.circleOptionSmall,
                   {
-                    top: 120,
+                    right: -100,
                     transform: [{ scale: circleScales[2] }],
                     opacity: circleOpacities[2],
                   },
                 ]}
               >
                 <TouchableOpacity
-                  style={styles.circleOptionInner}
+                  style={styles.circleOptionInnerSmall}
                   onPress={() => handleRecordingOptionSelect('ask')}
                   activeOpacity={0.8}
                 >
-                  <MessageSquare color={AuraColors.accentOrange} size={32} />
-                  <Text style={styles.circleOptionText}>Ask Aura</Text>
+                  <MessageSquare color={AuraColors.white} size={24} />
+                  <Text style={styles.circleOptionTextSmall}>Ask Aura</Text>
                 </TouchableOpacity>
               </Animated.View>
             </View>
@@ -560,6 +560,36 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.text,
     marginTop: 4,
     letterSpacing: 0.5,
+    textAlign: 'center',
+  },
+  circleOptionSmall: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 140, 66, 0.3)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 140, 66, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: AuraColors.accentOrange,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  circleOptionInnerSmall: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  circleOptionTextSmall: {
+    fontSize: 9,
+    fontWeight: '700' as const,
+    color: AuraColors.white,
+    marginTop: 2,
+    letterSpacing: 0.3,
     textAlign: 'center',
   },
   leftGlow: {
