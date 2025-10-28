@@ -559,13 +559,21 @@ export async function extractCalendarEvents(transcript: string): Promise<Calenda
     
     // Calculate next week dates
     const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const currentDayOfWeek = now.getDay();
     const nextWeekDates: Record<string, string> = {};
-    for (let i = 1; i <= 14; i++) {
-      const futureDate = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
-      const dayName = daysOfWeek[futureDate.getDay()];
-      if (!nextWeekDates[dayName] || i <= 7) {
-        nextWeekDates[dayName] = futureDate.toISOString().split('T')[0];
+    
+    // For each day of the week, calculate the next occurrence
+    for (let targetDay = 0; targetDay < 7; targetDay++) {
+      let daysUntilTarget = targetDay - currentDayOfWeek;
+      
+      // If the day has already passed this week or is today, add 7 days to get next week's occurrence
+      if (daysUntilTarget <= 0) {
+        daysUntilTarget += 7;
       }
+      
+      const futureDate = new Date(now.getTime() + daysUntilTarget * 24 * 60 * 60 * 1000);
+      const dayName = daysOfWeek[targetDay];
+      nextWeekDates[dayName] = futureDate.toISOString().split('T')[0];
     }
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {

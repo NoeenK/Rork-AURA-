@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView, PanResponder } from 'react-native';
+import { BlurView } from 'expo-blur';
 import * as Font from 'expo-font';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Mic, Calendar, Settings, Brain, TrendingUp, Target, Zap, X, BookOpen, Sparkles } from 'lucide-react-native';
@@ -145,6 +146,24 @@ export default function MainScreen() {
         style={StyleSheet.absoluteFillObject}
       />
       
+      {menuExpanded && (
+        <Animated.View
+          style={[
+            StyleSheet.absoluteFillObject,
+            {
+              opacity: mainButtonRotation,
+            },
+          ]}
+          pointerEvents="none"
+        >
+          <BlurView
+            intensity={20}
+            tint="dark"
+            style={StyleSheet.absoluteFillObject}
+          />
+        </Animated.View>
+      )}
+      
       <Animated.View style={[styles.leftGlow, { opacity: leftGlowAnim }]}>
         <LinearGradient
           colors={['transparent', AuraColors.accentOrange, 'transparent']}
@@ -279,7 +298,7 @@ export default function MainScreen() {
                   {
                     translateY: leftButtonAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, -50],
+                      outputRange: [0, -80],
                     }),
                   },
                   {
@@ -311,7 +330,7 @@ export default function MainScreen() {
                   {
                     translateY: centerButtonAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, -85],
+                      outputRange: [0, -120],
                     }),
                   },
                   {
@@ -349,7 +368,7 @@ export default function MainScreen() {
                   {
                     translateY: rightButtonAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, -50],
+                      outputRange: [0, -80],
                     }),
                   },
                   {

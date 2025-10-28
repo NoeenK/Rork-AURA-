@@ -387,42 +387,52 @@ ${selectedFullEntry.transcript}`;
                     </View>
                     <Text style={styles.processingTitle}>Processing Recording...</Text>
                     <Text style={styles.processingSubtext}>Transcribing audio and generating summary</Text>
+                    <View style={styles.entryTopRow}>
+                      <View style={styles.entryDateTimeRow}>
+                        <Calendar color={colors.textSecondary} size={14} />
+                        <Text style={styles.entryDate}>{entry.date}</Text>
+                      </View>
+                    </View>
                     <View style={styles.entryDateTimeRow}>
-                      <Calendar color={colors.textSecondary} size={14} />
                       <Clock color={colors.textSecondary} size={14} />
-                      <Text style={styles.entryDate}>{entry.date}</Text>
+                      <Text style={styles.entryDate}>{new Date(entry.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })} | {entry.duration < 60 ? `${entry.duration}s` : `${Math.floor(entry.duration / 60)} min`}</Text>
                     </View>
                   </View>
                 ) : (
                   <>
-                    <View style={styles.entryTopRow}>
+                    <View style={styles.entryTopRowMain}>
+                      <View style={styles.entryTopRow}>
+                        <View style={styles.entryDateTimeRow}>
+                          <Calendar color={colors.textSecondary} size={14} />
+                          <Text style={styles.entryDateTop}>{entry.date}</Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            if (Platform.OS !== 'web') {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            }
+                            setShowShareMenu(entry.id);
+                          }}
+                          activeOpacity={0.7}
+                          style={styles.shareButton}
+                        >
+                          <LinearGradient
+                            colors={['rgba(255, 138, 0, 0.2)', 'rgba(255, 110, 64, 0.25)']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.shareButtonGradient}
+                          >
+                            <Send color={AuraColors.accentOrange} size={14} strokeWidth={2.5} />
+                          </LinearGradient>
+                        </TouchableOpacity>
+                      </View>
                       <View style={styles.entryDateTimeRow}>
-                        <Calendar color={colors.textSecondary} size={14} />
                         <Clock color={colors.textSecondary} size={14} />
                         <Text style={styles.entryDateTop}>
-                          {entry.date} || {entry.duration < 60 ? `${entry.duration}s` : `${Math.floor(entry.duration / 60)} min`}
+                          {new Date(entry.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })} | {entry.duration < 60 ? `${entry.duration}s` : `${Math.floor(entry.duration / 60)} min`}
                         </Text>
                       </View>
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          if (Platform.OS !== 'web') {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          }
-                          setShowShareMenu(entry.id);
-                        }}
-                        activeOpacity={0.7}
-                        style={styles.shareButton}
-                      >
-                        <LinearGradient
-                          colors={['rgba(255, 138, 0, 0.2)', 'rgba(255, 110, 64, 0.25)']}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={styles.shareButtonGradient}
-                        >
-                          <Send color={AuraColors.accentOrange} size={14} strokeWidth={2.5} />
-                        </LinearGradient>
-                      </TouchableOpacity>
                     </View>
                     <View style={styles.entryHeader}>
                       <View style={styles.entryTitleRow}>
@@ -496,6 +506,25 @@ ${selectedFullEntry.transcript}`;
             <View style={[styles.modalHeader, { paddingTop: insets.top + 16 }]}>
               <Text style={styles.modalTitle}>Journal Entry</Text>
               <View style={styles.headerButtons}>
+                <TouchableOpacity
+                  onPress={() => {
+                    if (Platform.OS !== 'web') {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }
+                    setShowShareMenu(selectedFullEntry.id);
+                  }}
+                  activeOpacity={0.7}
+                  style={styles.shareButtonModal}
+                >
+                  <LinearGradient
+                    colors={['rgba(255, 138, 0, 0.2)', 'rgba(255, 110, 64, 0.25)']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.shareButtonGradient}
+                  >
+                    <Send color={AuraColors.accentOrange} size={16} strokeWidth={2.5} />
+                  </LinearGradient>
+                </TouchableOpacity>
                 <TouchableOpacity onPress={() => setShowExportMenu(true)} style={styles.menuButton}>
                   <MoreVertical color={colors.text} size={24} />
                 </TouchableOpacity>
@@ -537,7 +566,7 @@ ${selectedFullEntry.transcript}`;
                   <View style={styles.metadataRow}>
                     <Clock color={colors.textSecondary} size={16} strokeWidth={2} />
                     <Text style={styles.metadataText}>
-                      {new Date(selectedFullEntry.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} | {selectedFullEntry.duration < 60 ? `${selectedFullEntry.duration}s` : `${Math.floor(selectedFullEntry.duration / 60)} min`}
+                      {new Date(selectedFullEntry.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })} | {selectedFullEntry.duration < 60 ? `${selectedFullEntry.duration}s` : `${Math.floor(selectedFullEntry.duration / 60)} min`}
                     </Text>
                   </View>
                   {selectedFullEntry.location && (
@@ -1131,6 +1160,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 4,
+  },
+  entryTopRowMain: {
     marginBottom: 12,
   },
   entryDateTimeRow: {
@@ -1142,6 +1174,17 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: AuraColors.accentOrange,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  shareButtonModal: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     overflow: 'hidden',
     shadowColor: AuraColors.accentOrange,
     shadowOffset: { width: 0, height: 2 },
