@@ -58,53 +58,29 @@ export default function RecordingScreen() {
       Animated.sequence([
         Animated.parallel([
           Animated.timing(heartbeatScale, {
-            toValue: 1.2,
-            duration: 150,
+            toValue: 1.08,
+            duration: 800,
             useNativeDriver: true,
           }),
           Animated.timing(heartbeatOpacity, {
-            toValue: 1,
-            duration: 150,
+            toValue: 0.7,
+            duration: 800,
             useNativeDriver: true,
           }),
         ]),
         Animated.parallel([
           Animated.timing(heartbeatScale, {
             toValue: 1,
-            duration: 150,
+            duration: 800,
             useNativeDriver: true,
           }),
           Animated.timing(heartbeatOpacity, {
-            toValue: 0.6,
-            duration: 150,
+            toValue: 0.4,
+            duration: 800,
             useNativeDriver: true,
           }),
         ]),
-        Animated.parallel([
-          Animated.timing(heartbeatScale, {
-            toValue: 1.15,
-            duration: 120,
-            useNativeDriver: true,
-          }),
-          Animated.timing(heartbeatOpacity, {
-            toValue: 0.9,
-            duration: 120,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.parallel([
-          Animated.timing(heartbeatScale, {
-            toValue: 1,
-            duration: 120,
-            useNativeDriver: true,
-          }),
-          Animated.timing(heartbeatOpacity, {
-            toValue: 0.6,
-            duration: 120,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.delay(600),
+        Animated.delay(1200),
       ])
     ).start();
   }, [heartbeatScale, heartbeatOpacity]);
@@ -611,6 +587,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: '700' as const,
     color: colors.text,
     marginBottom: 24,
+    fontFamily: 'System',
+    letterSpacing: 2,
   },
   transcriptContainer: {
     width: '100%',
@@ -758,8 +736,9 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   glassTranscriptBox: {
     flex: 1,
-    marginTop: 8,
-    minHeight: 200,
+    marginTop: 32,
+    maxHeight: 180,
+    minHeight: 180,
     borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 1,

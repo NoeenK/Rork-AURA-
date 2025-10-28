@@ -23,6 +23,8 @@ export default function JournalScreen() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showExportOptionsMenu, setShowExportOptionsMenu] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
+  const [selectedTab, setSelectedTab] = useState<'summary' | 'todo' | 'transcript'>('summary');
+  const [checkedTodos, setCheckedTodos] = useState<Record<number, boolean>>({});
   const progressAnim = useRef(new Animated.Value(0)).current;
   const [showNewEntryPopup, setShowNewEntryPopup] = useState(false);
   const [newEntryId, setNewEntryId] = useState<string | null>(null);
@@ -277,6 +279,23 @@ export default function JournalScreen() {
     }
   };
 
+  const handleTabPress = (tab: 'summary' | 'todo' | 'transcript') => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    setSelectedTab(tab);
+  };
+
+  const handleTodoToggle = (index: number) => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    setCheckedTodos(prev => ({
+      ...prev,
+      [index]: !prev[index]
+    }));
+  };
+
   const styles = createStyles(colors);
   
   return (
@@ -445,36 +464,58 @@ export default function JournalScreen() {
                   </View>
                 </View>
                 
-                {selectedFullEntry.auraSummary && (
+                <View style={styles.tabButtonContainer}>
+                  <TouchableOpacity 
+                    style={[styles.tabButton, selectedTab === 'summary' && styles.tabButtonActive]}
+                    onPress={() => handleTabPress('summary')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.tabButtonText, selectedTab === 'summary' && styles.tabButtonTextActive]}>AI Summary</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.tabButton, selectedTab === 'todo' && styles.tabButtonActive]}
+                    onPress={() => handleTabPress('todo')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.tabButtonText, selectedTab === 'todo' && styles.tabButtonTextActive]}>To-Do</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.tabButton, selectedTab === 'transcript' && styles.tabButtonActive]}
+                    onPress={() => handleTabPress('transcript')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.tabButtonText, selectedTab === 'transcript' && styles.tabButtonTextActive]}>Transcription</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                {selectedTab === 'summary' && selectedFullEntry.auraSummary && (
                   <View style={styles.auraSummarySection}>
-                    <Text style={styles.auraSummaryTitle}>AURA Summary</Text>
-                    
                     <View style={styles.overviewSection}>
                       <Text style={styles.overviewLabel}>Overview</Text>
                       <Text style={styles.overviewText}>{selectedFullEntry.auraSummary.overview}</Text>
                     </View>
-                    
-                    {selectedFullEntry.auraSummary.tasks && selectedFullEntry.auraSummary.tasks.length > 0 && (
-                      <View style={styles.tasksSection}>
-                        <Text style={styles.tasksLabel}>Tasks To Do</Text>
-                        {selectedFullEntry.auraSummary.tasks.map((task: any, idx: number) => (
-                          <View key={idx} style={styles.taskItem}>
-                            <View style={styles.taskBullet} />
-                            <Text style={styles.taskText}>{typeof task === 'string' ? task : task.task || String(task)}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    )}
+                  </View>
+                )}
+
+                {selectedTab === 'todo' && selectedFullEntry.auraSummary?.tasks && selectedFullEntry.auraSummary.tasks.length > 0 && (
+                  <View style={styles.todoSection}>
+                    {selectedFullEntry.auraSummary.tasks.map((task: any, idx: number) => (
+                      <TouchableOpacity 
+                        key={idx} 
+                        style={styles.todoItem}
+                        onPress={() => handleTodoToggle(idx)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.todoBullet} />
+                        <Text style={[styles.todoText, checkedTodos[idx] && styles.todoTextChecked]}>
+                          {typeof task === 'string' ? task : task.task || String(task)}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
                   </View>
                 )}
                 
-                <View style={styles.transcriptSection}>
-                  <View style={styles.transcriptTabContainer}>
-                    <View style={styles.transcriptTab}>
-                      <Text style={styles.transcriptTabText}>Transcription</Text>
-                      <View style={styles.transcriptTabUnderline} />
-                    </View>
-                  </View>
+                {selectedTab === 'transcript' && (
                   <View style={styles.transcriptContent}>
                     <Text style={styles.fullTranscriptText}>
                       {selectedFullEntry.transcript.split(' ').map((word: string, idx: number) => {
@@ -493,7 +534,7 @@ export default function JournalScreen() {
                       })}
                     </Text>
                   </View>
-                </View>
+                )}
               </View>
             </ScrollView>
             
@@ -896,6 +937,35 @@ const createStyles = (colors: any) => StyleSheet.create({
     shadowRadius: 12,
     elevation: 5,
   },
+  tabButtonContainer: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 16,
+    marginBottom: 20,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  tabButtonActive: {
+    backgroundColor: 'rgba(255, 165, 0, 0.2)',
+    borderColor: AuraColors.accentOrange,
+  },
+  tabButtonText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: colors.textSecondary,
+  },
+  tabButtonTextActive: {
+    color: AuraColors.accentOrange,
+    fontWeight: '700' as const,
+  },
   playAudioButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -983,11 +1053,35 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.text,
     fontWeight: '500' as const,
   },
+  todoSection: {
+    marginTop: 8,
+  },
+  todoItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+    gap: 12,
+  },
+  todoBullet: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: AuraColors.accentOrange,
+    marginTop: 8,
+  },
+  todoText: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.text,
+    fontWeight: '500' as const,
+  },
+  todoTextChecked: {
+    textDecorationLine: 'line-through' as const,
+    opacity: 0.5,
+  },
   transcriptSection: {
-    marginTop: 24,
-    paddingTop: 24,
-    borderTopWidth: 1,
-    borderTopColor: colors.textSecondary,
+    marginTop: 8,
   },
   transcriptSectionTitle: {
     fontSize: 16,
@@ -1017,7 +1111,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 1.5,
   },
   transcriptContent: {
-    marginBottom: 32,
+    marginTop: 8,
   },
   fullTranscriptText: {
     fontSize: 16,
