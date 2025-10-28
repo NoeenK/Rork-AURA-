@@ -1,8 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView, PanResponder, Modal } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView, PanResponder } from 'react-native';
 import * as Font from 'expo-font';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Mic, Calendar, Settings, Brain, TrendingUp, Target, Zap, MessageSquare, BookText } from 'lucide-react-native';
+import { Mic, Calendar, Settings, Brain, TrendingUp, Target, Zap } from 'lucide-react-native';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -66,73 +66,11 @@ export default function MainScreen() {
     })
   ).current;
 
-  const [showRecordingPopup, setShowRecordingPopup] = useState(false);
-  const circleScales = useRef([new Animated.Value(0), new Animated.Value(0), new Animated.Value(0)]).current;
-  const circleOpacities = useRef([new Animated.Value(0), new Animated.Value(0), new Animated.Value(0)]).current;
-
   const handleRecording = () => {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    setShowRecordingPopup(true);
-    
-    const animations = circleScales.map((scale, index) => {
-      return Animated.parallel([
-        Animated.spring(scale, {
-          toValue: 1,
-          useNativeDriver: true,
-          damping: 15,
-          stiffness: 150,
-          delay: index * 100,
-        }),
-        Animated.timing(circleOpacities[index], {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-          delay: index * 100,
-        }),
-      ]);
-    });
-
-    Animated.stagger(100, animations).start();
-  };
-
-  const handleRecordingOptionSelect = (option: 'record' | 'journal' | 'ask') => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-
-    const hideAnimations = circleScales.map((scale, index) => {
-      return Animated.parallel([
-        Animated.spring(scale, {
-          toValue: 0,
-          useNativeDriver: true,
-          damping: 15,
-          stiffness: 150,
-          delay: (2 - index) * 50,
-        }),
-        Animated.timing(circleOpacities[index], {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-          delay: (2 - index) * 50,
-        }),
-      ]);
-    });
-
-    Animated.stagger(50, hideAnimations).start(() => {
-      setShowRecordingPopup(false);
-      circleScales.forEach(s => s.setValue(0));
-      circleOpacities.forEach(o => o.setValue(0));
-      
-      if (option === 'record') {
-        router.push('/recording');
-      } else if (option === 'journal') {
-        router.push('/journal');
-      } else if (option === 'ask') {
-        router.push('/ask-aura');
-      }
-    });
+    router.push('/recording');
   };
 
   const handleCalendar = () => {
@@ -287,128 +225,6 @@ export default function MainScreen() {
           </TouchableOpacity>
         </View>
       </View>
-
-      {showRecordingPopup && (
-        <Modal
-          visible={true}
-          transparent={true}
-          animationType="none"
-          onRequestClose={() => {
-            const hideAnimations = circleScales.map((scale, index) => {
-              return Animated.parallel([
-                Animated.spring(scale, {
-                  toValue: 0,
-                  useNativeDriver: true,
-                  damping: 15,
-                  stiffness: 150,
-                  delay: (2 - index) * 50,
-                }),
-                Animated.timing(circleOpacities[index], {
-                  toValue: 0,
-                  duration: 200,
-                  useNativeDriver: true,
-                  delay: (2 - index) * 50,
-                }),
-              ]);
-            });
-            Animated.stagger(50, hideAnimations).start(() => {
-              setShowRecordingPopup(false);
-              circleScales.forEach(s => s.setValue(0));
-              circleOpacities.forEach(o => o.setValue(0));
-            });
-          }}
-        >
-          <TouchableOpacity
-            style={styles.circlePopupOverlay}
-            activeOpacity={1}
-            onPress={() => {
-              const hideAnimations = circleScales.map((scale, index) => {
-                return Animated.parallel([
-                  Animated.spring(scale, {
-                    toValue: 0,
-                    useNativeDriver: true,
-                    damping: 15,
-                    stiffness: 150,
-                    delay: (2 - index) * 50,
-                  }),
-                  Animated.timing(circleOpacities[index], {
-                    toValue: 0,
-                    duration: 200,
-                    useNativeDriver: true,
-                    delay: (2 - index) * 50,
-                  }),
-                ]);
-              });
-              Animated.stagger(50, hideAnimations).start(() => {
-                setShowRecordingPopup(false);
-                circleScales.forEach(s => s.setValue(0));
-                circleOpacities.forEach(o => o.setValue(0));
-              });
-            }}
-          >
-            <View style={styles.circleContainer}>
-              <Animated.View
-                style={[
-                  styles.circleOption,
-                  {
-                    bottom: 120,
-                    transform: [{ scale: circleScales[0] }],
-                    opacity: circleOpacities[0],
-                  },
-                ]}
-              >
-                <TouchableOpacity
-                  style={styles.circleOptionInner}
-                  onPress={() => handleRecordingOptionSelect('journal')}
-                  activeOpacity={0.8}
-                >
-                  <BookText color={AuraColors.accentOrange} size={32} />
-                  <Text style={styles.circleOptionText}>Journal</Text>
-                </TouchableOpacity>
-              </Animated.View>
-
-              <Animated.View
-                style={[
-                  styles.circleOption,
-                  {
-                    transform: [{ scale: circleScales[1] }],
-                    opacity: circleOpacities[1],
-                  },
-                ]}
-              >
-                <TouchableOpacity
-                  style={styles.circleOptionInner}
-                  onPress={() => handleRecordingOptionSelect('record')}
-                  activeOpacity={0.8}
-                >
-                  <Mic color={AuraColors.accentOrange} size={32} />
-                  <Text style={styles.circleOptionText}>Record</Text>
-                </TouchableOpacity>
-              </Animated.View>
-
-              <Animated.View
-                style={[
-                  styles.circleOption,
-                  {
-                    top: 120,
-                    transform: [{ scale: circleScales[2] }],
-                    opacity: circleOpacities[2],
-                  },
-                ]}
-              >
-                <TouchableOpacity
-                  style={styles.circleOptionInner}
-                  onPress={() => handleRecordingOptionSelect('ask')}
-                  activeOpacity={0.8}
-                >
-                  <MessageSquare color={AuraColors.accentOrange} size={32} />
-                  <Text style={styles.circleOptionText}>Ask Aura</Text>
-                </TouchableOpacity>
-              </Animated.View>
-            </View>
-          </TouchableOpacity>
-        </Modal>
-      )}
     </View>
   );
 }
@@ -511,56 +327,16 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(255, 140, 66, 0.25)',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 140, 66, 0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: AuraColors.accentOrange,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.6,
-    shadowRadius: 24,
-    elevation: 12,
-  },
-  circlePopupOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  circleContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  circleOption: {
-    position: 'absolute',
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: AuraColors.accentOrange,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  circleOptionInner: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  circleOptionText: {
-    fontSize: 10,
-    fontWeight: '700' as const,
-    color: colors.text,
-    marginTop: 4,
-    letterSpacing: 0.5,
-    textAlign: 'center',
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
   },
   leftGlow: {
     position: 'absolute',

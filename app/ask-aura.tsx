@@ -108,7 +108,33 @@ export default function AskAuraScreen() {
   ).current;
 
   useEffect(() => {
-    return () => {};
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        Animated.spring(inputAnim, {
+          toValue: -e.endCoordinates.height,
+          useNativeDriver: true,
+          damping: 15,
+          stiffness: 150,
+        }).start();
+      }
+    );
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        Animated.spring(inputAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          damping: 15,
+          stiffness: 150,
+        }).start();
+      }
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
   }, [inputAnim]);
 
   const handleSend = async () => {
@@ -177,10 +203,6 @@ export default function AskAuraScreen() {
           setRecording(null);
           setIsRecording(false);
 
-          await Audio.setAudioModeAsync({
-            allowsRecordingIOS: false,
-          });
-
           if (uri) {
             const formData = new FormData();
             const uriParts = uri.split('.');
@@ -206,19 +228,10 @@ export default function AskAuraScreen() {
         } catch (error) {
           console.error('Error transcribing audio:', error);
           setIsRecording(false);
-          setRecording(null);
-          await Audio.setAudioModeAsync({
-            allowsRecordingIOS: false,
-          });
         }
       }
     } else {
       try {
-        if (recording) {
-          await recording.stopAndUnloadAsync();
-          setRecording(null);
-        }
-
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: true,
           playsInSilentModeIOS: true,
@@ -254,9 +267,6 @@ export default function AskAuraScreen() {
         setIsRecording(true);
       } catch (error) {
         console.error('Failed to start recording:', error);
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-        });
       }
     }
   };
@@ -272,20 +282,20 @@ export default function AskAuraScreen() {
   const styles = createStyles(colors);
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={0}
-    >
-      <LinearGradient
-        colors={[colors.gradientStart, colors.gradientEnd]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-      />
-    
-      <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
-        <View style={[styles.content, { paddingTop: insets.top + 16 }]}>
+    <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
+      <KeyboardAvoidingView 
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+      >
+        <LinearGradient
+          colors={[colors.gradientStart, colors.gradientEnd]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFillObject}
+        />
+      
+      <View style={[styles.content, { paddingTop: insets.top + 16 }]}>
         <View style={styles.header}>
           <TouchableOpacity onPress={toggleHistory} style={styles.historyButton}>
             <History color={colors.text} size={24} />
@@ -519,7 +529,7 @@ export default function AskAuraScreen() {
           </Animated.View>
         )}
         
-          <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 16 }]}>
+        <Animated.View style={[styles.inputContainer, { paddingBottom: insets.bottom + 16, transform: [{ translateY: inputAnim }] }]}>
           <View style={styles.searchBarWrapper}>
             <LinearGradient
               colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.04)']}
@@ -578,9 +588,8 @@ export default function AskAuraScreen() {
               </View>
             </LinearGradient>
           </View>
-          </View>
-        </View>
-      </TouchableWithoutFeedback>
+        </Animated.View>
+      </View>
       
       {showHistory && (
         <TouchableOpacity 
@@ -626,7 +635,8 @@ export default function AskAuraScreen() {
           </View>
         </LinearGradient>
       </Animated.View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </TouchableWithoutFeedback>
   );
 }
 
