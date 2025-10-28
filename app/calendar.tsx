@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Platform, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { X, ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -180,7 +180,7 @@ export default function CalendarScreen() {
         >
           <View style={[styles.dayContent, isToday && styles.today, isSelected && styles.selected]}>
             <Text style={[styles.dayText, (isToday || isSelected) && styles.todayText]}>{day}</Text>
-            {hasEvents && !isToday && !isSelected && (
+            {hasEvents && (
               <View style={styles.eventDotIndicator} />
             )}
           </View>
@@ -287,7 +287,7 @@ export default function CalendarScreen() {
                       onPress={() => exportToNativeCalendar(event)}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.exportButtonText}>Add to Apple Calendar</Text>
+                      <CalendarIcon color={colors.text} size={20} />
                     </TouchableOpacity>
                   </View>
                 );
@@ -402,10 +402,10 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   eventDotIndicator: {
     position: 'absolute',
-    bottom: 4,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    bottom: 2,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
     backgroundColor: AuraColors.accentOrange,
   },
   todaySection: {
@@ -462,17 +462,13 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   exportButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 140, 66, 0.5)',
-  },
-  exportButtonText: {
-    fontSize: 13,
-    fontWeight: '700' as const,
-    color: colors.text,
-    textAlign: 'center',
   },
   noEventsText: {
     fontSize: 16,

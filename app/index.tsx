@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView, PanResponder } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Mic, Square, Calendar, Settings, BookOpen, MessageCircle, X, Brain, TrendingUp, Target, Zap } from 'lucide-react-native';
+import { Mic, Square, Calendar, Settings, BookOpen, MessageCircle, X, Brain, TrendingUp, Target, Zap, ChevronRight, ChevronLeft } from 'lucide-react-native';
 import { Audio } from 'expo-av';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -28,16 +28,46 @@ export default function MainScreen() {
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const [permissionGranted, setPermissionGranted] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(false);
+  const [showArrow, setShowArrow] = useState<boolean>(true);
 
   const menuAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const waveAnims = useRef(
     Array.from({ length: 40 }, () => new Animated.Value(0.3))
   ).current;
+  const arrowAnim = useRef(new Animated.Value(0)).current;
+  const leftGlowAnim = useRef(new Animated.Value(0)).current;
+  const rightGlowAnim = useRef(new Animated.Value(0)).current;
 
   const durationInterval = useRef<number | null>(null);
   const transcriptionInterval = useRef<number | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => recordingState === 'idle' && menuState === 'collapsed',
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return recordingState === 'idle' && menuState === 'collapsed' && Math.abs(gestureState.dx) > 20;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dx < -50) {
+          leftGlowAnim.setValue(Math.min(1, Math.abs(gestureState.dx) / 100));
+        } else if (gestureState.dx > 50) {
+          rightGlowAnim.setValue(Math.min(1, gestureState.dx / 100));
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        leftGlowAnim.setValue(0);
+        rightGlowAnim.setValue(0);
+        
+        if (gestureState.dx < -100) {
+          router.push('/journal');
+        } else if (gestureState.dx > 100) {
+          handleAsk();
+        }
+      },
+    })
+  ).current;
 
   const requestPermissions = async () => {
     try {
@@ -121,6 +151,21 @@ export default function MainScreen() {
 
   useEffect(() => {
     requestPermissions();
+    
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(arrowAnim, {
+          toValue: 1,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(arrowAnim, {
+          toValue: 0,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
   }, []);
 
   useEffect(() => {
@@ -166,6 +211,10 @@ export default function MainScreen() {
     }).start();
 
     setMenuState(menuState === 'collapsed' ? 'expanded' : 'collapsed');
+    
+    if (menuState === 'collapsed') {
+      setShowArrow(false);
+    }
   };
 
   const startRecording = async () => {
@@ -555,16 +604,44 @@ export default function MainScreen() {
     outputRange: [0, 1],
   });
 
+  const arrowTranslateY = arrowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 10],
+  });
+
+  const arrowOpacity = arrowAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0.3, 1, 0.3],
+  });
+
   const styles = createStyles(colors);
   
   return (
-    <View style={styles.container}>
+    <View style={styles.container} {...panResponder.panHandlers}>
       <LinearGradient
         colors={[colors.gradientStart, colors.gradientEnd]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFillObject}
       />
+      
+      <Animated.View style={[styles.leftGlow, { opacity: leftGlowAnim }]}>
+        <LinearGradient
+          colors={['transparent', AuraColors.accentOrange, 'transparent']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.glowGradient}
+        />
+      </Animated.View>
+      
+      <Animated.View style={[styles.rightGlow, { opacity: rightGlowAnim }]}>
+        <LinearGradient
+          colors={['transparent', AuraColors.accentOrange, 'transparent']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.glowGradient}
+        />
+      </Animated.View>
       
       <View style={[styles.content, { paddingTop: insets.top + 16 }]}>
         <View style={styles.header}>
@@ -712,14 +789,19 @@ export default function MainScreen() {
             </View>
           )}
 
-          {recordingState === 'idle' && (
-            <View style={styles.instructionContainer}>
-              <Text style={styles.instructionText}>
-                Tap the microphone to begin
-              </Text>
-              <Text style={styles.instructionSubtext}>
-                Record your thoughts, ideas, and memories
-              </Text>
+          {recordingState === 'idle' && showArrow && (
+            <View style={styles.arrowContainer}>
+              <Animated.View
+                style={[{
+                  opacity: arrowOpacity,
+                  transform: [{ translateY: arrowTranslateY }],
+                }]}
+              >
+                <View style={styles.arrowIcon}>
+                  <View style={styles.arrowLine} />
+                  <View style={styles.arrowHead} />
+                </View>
+              </Animated.View>
             </View>
           )}
           </View>
@@ -1174,5 +1256,48 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   cancelButton: {
     backgroundColor: '#95A5A6',
+  },
+  leftGlow: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
+    zIndex: 10,
+  },
+  rightGlow: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
+    zIndex: 10,
+  },
+  glowGradient: {
+    flex: 1,
+  },
+  arrowContainer: {
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  arrowIcon: {
+    alignItems: 'center',
+  },
+  arrowLine: {
+    width: 3,
+    height: 40,
+    backgroundColor: AuraColors.accentOrange,
+    borderRadius: 1.5,
+    marginBottom: -2,
+  },
+  arrowHead: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 12,
+    borderRightWidth: 12,
+    borderTopWidth: 16,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: AuraColors.accentOrange,
   },
 });
