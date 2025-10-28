@@ -69,12 +69,28 @@ export default function MainScreen() {
   const [showRecordingPopup, setShowRecordingPopup] = useState(false);
   const circleScales = useRef([new Animated.Value(0), new Animated.Value(0), new Animated.Value(0)]).current;
   const circleOpacities = useRef([new Animated.Value(0), new Animated.Value(0), new Animated.Value(0)]).current;
+  const mainButtonRotate = useRef(new Animated.Value(0)).current;
+  const mainButtonScale = useRef(new Animated.Value(1)).current;
 
   const handleRecording = () => {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     setShowRecordingPopup(true);
+    
+    Animated.parallel([
+      Animated.timing(mainButtonRotate, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.spring(mainButtonScale, {
+        toValue: 0.9,
+        useNativeDriver: true,
+        damping: 15,
+        stiffness: 150,
+      }),
+    ]).start();
     
     const animations = circleScales.map((scale, index) => {
       return Animated.parallel([
@@ -120,10 +136,25 @@ export default function MainScreen() {
       ]);
     });
 
-    Animated.stagger(50, hideAnimations).start(() => {
+    Animated.parallel([
+      Animated.stagger(50, hideAnimations),
+      Animated.timing(mainButtonRotate, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.spring(mainButtonScale, {
+        toValue: 1,
+        useNativeDriver: true,
+        damping: 15,
+        stiffness: 150,
+      }),
+    ]).start(() => {
       setShowRecordingPopup(false);
       circleScales.forEach(s => s.setValue(0));
       circleOpacities.forEach(o => o.setValue(0));
+      mainButtonRotate.setValue(0);
+      mainButtonScale.setValue(1);
       
       if (option === 'record') {
         router.push('/recording');
@@ -278,13 +309,37 @@ export default function MainScreen() {
         </ScrollView>
 
         <View style={[styles.buttonContainer, { paddingBottom: insets.bottom + 40 }]}>
-          <TouchableOpacity
-            style={styles.mainMicButton}
-            onPress={handleRecording}
-            activeOpacity={0.8}
+          <Animated.View
+            style={[
+              styles.mainMicButton,
+              {
+                transform: [
+                  { scale: mainButtonScale },
+                  {
+                    rotate: mainButtonRotate.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0deg', '45deg'],
+                    }),
+                  },
+                ],
+              },
+            ]}
           >
-            <Mic color={AuraColors.white} size={36} />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.mainMicButtonInner}
+              onPress={handleRecording}
+              activeOpacity={0.8}
+            >
+              {showRecordingPopup ? (
+                <View style={styles.cancelIcon}>
+                  <View style={styles.cancelLine1} />
+                  <View style={styles.cancelLine2} />
+                </View>
+              ) : (
+                <Mic color={AuraColors.white} size={36} />
+              )}
+            </TouchableOpacity>
+          </Animated.View>
         </View>
       </View>
 
@@ -311,10 +366,25 @@ export default function MainScreen() {
                 }),
               ]);
             });
-            Animated.stagger(50, hideAnimations).start(() => {
+            Animated.parallel([
+              Animated.stagger(50, hideAnimations),
+              Animated.timing(mainButtonRotate, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: true,
+              }),
+              Animated.spring(mainButtonScale, {
+                toValue: 1,
+                useNativeDriver: true,
+                damping: 15,
+                stiffness: 150,
+              }),
+            ]).start(() => {
               setShowRecordingPopup(false);
               circleScales.forEach(s => s.setValue(0));
               circleOpacities.forEach(o => o.setValue(0));
+              mainButtonRotate.setValue(0);
+              mainButtonScale.setValue(1);
             });
           }}
         >
@@ -511,16 +581,43 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(255, 140, 66, 0.25)',
+    backgroundColor: 'rgba(255, 140, 66, 0.4)',
     borderWidth: 2,
-    borderColor: 'rgba(255, 140, 66, 0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: 'rgba(255, 140, 66, 0.7)',
     shadowColor: AuraColors.accentOrange,
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.6,
-    shadowRadius: 24,
+    shadowOpacity: 0.7,
+    shadowRadius: 28,
     elevation: 12,
+  },
+  mainMicButtonInner: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 40,
+  },
+  cancelIcon: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelLine1: {
+    position: 'absolute',
+    width: 28,
+    height: 3,
+    backgroundColor: AuraColors.white,
+    borderRadius: 1.5,
+    transform: [{ rotate: '45deg' }],
+  },
+  cancelLine2: {
+    position: 'absolute',
+    width: 28,
+    height: 3,
+    backgroundColor: AuraColors.white,
+    borderRadius: 1.5,
+    transform: [{ rotate: '-45deg' }],
   },
   circlePopupOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -567,15 +664,15 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(255, 140, 66, 0.3)',
+    backgroundColor: 'rgba(255, 140, 66, 0.4)',
     borderWidth: 2,
-    borderColor: 'rgba(255, 140, 66, 0.6)',
+    borderColor: 'rgba(255, 140, 66, 0.7)',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: AuraColors.accentOrange,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.6,
-    shadowRadius: 20,
+    shadowOpacity: 0.7,
+    shadowRadius: 24,
     elevation: 10,
   },
   circleOptionInnerSmall: {
