@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Mic, Square, Calendar, Settings, BookOpen, MessageCircle, X } from 'lucide-react-native';
+import { Mic, Square, Calendar, Settings, BookOpen, MessageCircle, X, Brain, TrendingUp, Target, Zap } from 'lucide-react-native';
 import { Audio } from 'expo-av';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -566,12 +566,76 @@ export default function MainScreen() {
           </View>
         </View>
         
-        <View style={styles.recordingSection}>
-          {(recordingState === 'recording' || recordingState === 'paused') && (
+        <ScrollView 
+          style={styles.scrollContent}
+          contentContainerStyle={styles.scrollContentContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          {recordingState === 'idle' && (
+            <View style={styles.categoriesGrid}>
+              <View style={styles.categoryRow}>
+                <TouchableOpacity 
+                  style={styles.categoryBox}
+                  activeOpacity={0.7}
+                  onPress={() => console.log('Insights')}
+                >
+                  <View style={styles.categoryGlow} />
+                  <View style={styles.categoryContent}>
+                    <Brain color={AuraColors.accentOrange} size={28} strokeWidth={2.5} />
+                    <Text style={styles.categoryTitle}>Insights</Text>
+                    <Text style={styles.categorySubtitle}>AI Analysis</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={styles.categoryBox}
+                  activeOpacity={0.7}
+                  onPress={() => console.log('Goals')}
+                >
+                  <View style={styles.categoryGlow} />
+                  <View style={styles.categoryContent}>
+                    <Target color={AuraColors.accentOrange} size={28} strokeWidth={2.5} />
+                    <Text style={styles.categoryTitle}>Goals</Text>
+                    <Text style={styles.categorySubtitle}>Track Progress</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.categoryRow}>
+                <TouchableOpacity 
+                  style={styles.categoryBox}
+                  activeOpacity={0.7}
+                  onPress={() => console.log('Analytics')}
+                >
+                  <View style={styles.categoryGlow} />
+                  <View style={styles.categoryContent}>
+                    <TrendingUp color={AuraColors.accentOrange} size={28} strokeWidth={2.5} />
+                    <Text style={styles.categoryTitle}>Analytics</Text>
+                    <Text style={styles.categorySubtitle}>Your Stats</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={styles.categoryBox}
+                  activeOpacity={0.7}
+                  onPress={() => console.log('Quick Actions')}
+                >
+                  <View style={styles.categoryGlow} />
+                  <View style={styles.categoryContent}>
+                    <Zap color={AuraColors.accentOrange} size={28} strokeWidth={2.5} />
+                    <Text style={styles.categoryTitle}>Actions</Text>
+                    <Text style={styles.categorySubtitle}>Quick Access</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          <View style={styles.recordingSection}>
+            {(recordingState === 'recording' || recordingState === 'paused') && (
             <>
               <View style={styles.waveformContainer}>
                 {waveAnims.map((anim, index) => {
-                  const position = index / waveAnims.length;
                   const flowOffset = (recordingDuration * 50 + index * 30) % 360;
                   
                   return (
@@ -645,7 +709,8 @@ export default function MainScreen() {
               </Text>
             </View>
           )}
-        </View>
+          </View>
+        </ScrollView>
 
         <View style={[styles.buttonContainer, { paddingBottom: insets.bottom + 40 }]}>
           {(recordingState === 'recording' || recordingState === 'paused') ? (
@@ -881,6 +946,62 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 16,
     color: colors.textSecondary,
     fontWeight: '500' as const,
+  },
+  scrollContent: {
+    flex: 1,
+  },
+  scrollContentContainer: {
+    flexGrow: 1,
+  },
+  categoriesGrid: {
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 32,
+  },
+  categoryRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 16,
+  },
+  categoryBox: {
+    flex: 1,
+    aspectRatio: 1,
+    borderRadius: 24,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  categoryGlow: {
+    position: 'absolute',
+    top: -2,
+    left: -2,
+    right: -2,
+    bottom: -2,
+    borderRadius: 26,
+    borderWidth: 2,
+    borderColor: AuraColors.accentOrange,
+    opacity: 0.3,
+  },
+  categoryContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  categoryTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: colors.text,
+    marginTop: 12,
+    letterSpacing: 0.3,
+  },
+  categorySubtitle: {
+    fontSize: 12,
+    fontWeight: '500' as const,
+    color: colors.textSecondary,
+    marginTop: 4,
   },
   instructionContainer: {
     padding: 32,
