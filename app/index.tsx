@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView, PanResponder } from 'react-native';
 import * as Font from 'expo-font';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Mic, Calendar, Settings, Brain, TrendingUp, Target, Zap } from 'lucide-react-native';
+import { Mic, Calendar, Settings, Brain, TrendingUp, Target, Zap, BookOpen, X } from 'lucide-react-native';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,9 +13,17 @@ export default function MainScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const [fontLoaded, setFontLoaded] = useState(false);
+  const [menuExpanded, setMenuExpanded] = useState(false);
   
   const leftGlowAnim = useRef(new Animated.Value(0.3)).current;
   const rightGlowAnim = useRef(new Animated.Value(0.3)).current;
+  
+  const expandAnim = useRef(new Animated.Value(0)).current;
+  const button1Anim = useRef(new Animated.Value(0)).current;
+  const button2Anim = useRef(new Animated.Value(0)).current;
+  const button3Anim = useRef(new Animated.Value(0)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     async function loadFont() {
@@ -66,11 +74,111 @@ export default function MainScreen() {
     })
   ).current;
 
-  const handleRecording = () => {
+  const toggleMenu = () => {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    router.push('/recording');
+    
+    if (menuExpanded) {
+      Animated.parallel([
+        Animated.timing(expandAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(button1Anim, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(button2Anim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(button3Anim, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(rotateAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+      setMenuExpanded(false);
+    } else {
+      setMenuExpanded(true);
+      Animated.parallel([
+        Animated.spring(expandAnim, {
+          toValue: 1,
+          tension: 100,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+        Animated.spring(button1Anim, {
+          toValue: 1,
+          tension: 80,
+          friction: 8,
+          delay: 50,
+          useNativeDriver: true,
+        }),
+        Animated.spring(button2Anim, {
+          toValue: 1,
+          tension: 80,
+          friction: 8,
+          delay: 100,
+          useNativeDriver: true,
+        }),
+        Animated.spring(button3Anim, {
+          toValue: 1,
+          tension: 80,
+          friction: 8,
+          delay: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 0.95,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  };
+
+  const handleJournal = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    toggleMenu();
+    setTimeout(() => router.push('/journal'), 100);
+  };
+
+  const handleRecording = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    toggleMenu();
+    setTimeout(() => router.push('/recording'), 100);
+  };
+
+  const handleAskAura = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    toggleMenu();
+    setTimeout(() => router.push('/ask-aura'), 100);
   };
 
   const handleCalendar = () => {
@@ -86,6 +194,26 @@ export default function MainScreen() {
     }
     router.push('/settings');
   };
+
+  const rotateInterpolate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '45deg'],
+  });
+
+  const button1TranslateX = button1Anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -95],
+  });
+
+  const button2TranslateY = button2Anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -95],
+  });
+
+  const button3TranslateX = button3Anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 95],
+  });
 
   const styles = createStyles(colors);
   
@@ -216,19 +344,126 @@ export default function MainScreen() {
         </ScrollView>
 
         <View style={[styles.buttonContainer, { paddingBottom: insets.bottom + 40 }]}>
-          <View style={styles.mainMicButton}>
-            <TouchableOpacity
-              style={styles.mainMicButtonInner}
-              onPress={handleRecording}
-              activeOpacity={0.8}
+          <View style={styles.menuContainer}>
+            <Animated.View 
+              style={[
+                styles.menuButton,
+                {
+                  transform: [
+                    { translateX: button1TranslateX },
+                    { scale: button1Anim },
+                  ],
+                  opacity: button1Anim,
+                },
+              ]}
             >
-              <Mic color={AuraColors.white} size={36} />
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.menuButtonInner}
+                onPress={handleJournal}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={['rgba(255, 140, 66, 0.9)', 'rgba(255, 100, 30, 0.9)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.menuButtonGradient}
+                >
+                  <BookOpen color={AuraColors.white} size={24} strokeWidth={2.5} />
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
+
+            <Animated.View 
+              style={[
+                styles.menuButton,
+                {
+                  transform: [
+                    { translateY: button2TranslateY },
+                    { scale: button2Anim },
+                  ],
+                  opacity: button2Anim,
+                },
+              ]}
+            >
+              <TouchableOpacity
+                style={styles.menuButtonInner}
+                onPress={handleRecording}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={['rgba(255, 140, 66, 0.9)', 'rgba(255, 100, 30, 0.9)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.menuButtonGradient}
+                >
+                  <Mic color={AuraColors.white} size={24} strokeWidth={2.5} />
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
+
+            <Animated.View 
+              style={[
+                styles.menuButton,
+                {
+                  transform: [
+                    { translateX: button3TranslateX },
+                    { scale: button3Anim },
+                  ],
+                  opacity: button3Anim,
+                },
+              ]}
+            >
+              <TouchableOpacity
+                style={styles.menuButtonInner}
+                onPress={handleAskAura}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={['rgba(255, 140, 66, 0.9)', 'rgba(255, 100, 30, 0.9)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.menuButtonGradient}
+                >
+                  <Brain color={AuraColors.white} size={24} strokeWidth={2.5} />
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
+
+            <Animated.View
+              style={[
+                styles.mainMicButton,
+                {
+                  transform: [
+                    { rotate: rotateInterpolate },
+                    { scale: scaleAnim },
+                  ],
+                },
+              ]}
+            >
+              <TouchableOpacity
+                style={styles.mainMicButtonInner}
+                onPress={toggleMenu}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={menuExpanded 
+                    ? ['rgba(255, 255, 255, 0.95)', 'rgba(240, 240, 240, 0.95)']
+                    : ['rgba(255, 140, 66, 0.4)', 'rgba(255, 100, 30, 0.4)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.mainButtonGradient}
+                >
+                  {menuExpanded ? (
+                    <X color={AuraColors.accentOrange} size={36} strokeWidth={3} />
+                  ) : (
+                    <Mic color={AuraColors.white} size={36} strokeWidth={2.5} />
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
           </View>
         </View>
       </View>
-
-
     </View>
   );
 }
@@ -327,11 +562,53 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'center',
     paddingTop: 20,
   },
+  menuContainer: {
+    position: 'relative',
+    width: 80,
+    height: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuButton: {
+    position: 'absolute',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+  },
+  menuButtonInner: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 30,
+  },
+  menuButtonGradient: {
+    flex: 1,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 140, 66, 0.7)',
+    shadowColor: AuraColors.accentOrange,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
+    elevation: 8,
+  },
   mainMicButton: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(255, 140, 66, 0.4)',
+    position: 'absolute',
+  },
+  mainMicButtonInner: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 40,
+  },
+  mainButtonGradient: {
+    flex: 1,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 2,
     borderColor: 'rgba(255, 140, 66, 0.7)',
     shadowColor: AuraColors.accentOrange,
@@ -339,13 +616,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     shadowOpacity: 0.7,
     shadowRadius: 28,
     elevation: 12,
-  },
-  mainMicButtonInner: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 40,
   },
   leftGlow: {
     position: 'absolute',
@@ -369,5 +639,4 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     borderRadius: 1.5,
   },
-
 });

@@ -373,6 +373,20 @@ export default function RecordingScreen() {
     return colors[(speakerNum - 1) % colors.length];
   };
 
+  const mergeTokenText = (tokenList: Token[]): string => {
+    let result = '';
+    tokenList.forEach((token, i) => {
+      const text = token.text || '';
+      if (i === 0) {
+        result = text;
+      } else {
+        const needsSpace = !result.endsWith(' ') && !text.startsWith(' ');
+        result += needsSpace ? ' ' + text : text;
+      }
+    });
+    return result.replace(/\s+/g, ' ').trim();
+  };
+
   const renderTokenGroups = () => {
     if (tokens.length === 0) return null;
 
@@ -402,6 +416,9 @@ export default function RecordingScreen() {
       const originalTokens = group.tokens.filter((t) => !t.translationStatus || t.translationStatus === 'original');
       const translationTokens = group.tokens.filter((t) => t.translationStatus === 'translation');
       
+      const originalText = mergeTokenText(originalTokens);
+      const translatedText = mergeTokenText(translationTokens);
+      
       return (
         <View key={groupIdx} style={styles.transcriptGroup}>
           <View style={[styles.speakerBadge, { backgroundColor: speakerColor }]}>
@@ -409,27 +426,23 @@ export default function RecordingScreen() {
           </View>
           
           <View style={styles.transcriptBlock}>
-            {originalTokens.length > 0 && (
+            {originalText.length > 0 && (
               <View style={styles.transcriptLine}>
                 {originalTokens[0]?.language && (
                   <View style={styles.languageBadge}>
                     <Text style={styles.languageBadgeText}>{originalTokens[0].language.toUpperCase()}</Text>
                   </View>
                 )}
-                <Text style={styles.originalText}>
-                  {originalTokens.map((t, i) => t.text + (i < originalTokens.length - 1 ? ' ' : ''))}
-                </Text>
+                <Text style={styles.originalText}>{originalText}</Text>
               </View>
             )}
             
-            {translationTokens.length > 0 && (
+            {translatedText.length > 0 && (
               <View style={styles.transcriptLine}>
                 <View style={styles.languageBadge}>
                   <Text style={styles.languageBadgeText}>EN</Text>
                 </View>
-                <Text style={styles.translatedText}>
-                  {translationTokens.map((t, i) => t.text + (i < translationTokens.length - 1 ? ' ' : ''))}
-                </Text>
+                <Text style={styles.translatedText}>{translatedText}</Text>
               </View>
             )}
           </View>
@@ -593,10 +606,15 @@ const createStyles = (colors: any) => StyleSheet.create({
   transcriptContainer: {
     width: '100%',
     maxHeight: 400,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: 'rgba(255, 255, 255, 0.97)',
     borderRadius: 20,
-    padding: 16,
+    padding: 18,
     marginTop: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   transcriptLabel: {
     fontSize: 11,
@@ -610,14 +628,19 @@ const createStyles = (colors: any) => StyleSheet.create({
     maxHeight: 350,
   },
   transcriptGroup: {
-    marginBottom: 12,
+    marginBottom: 16,
   },
   speakerBadge: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
   },
   speakerBadgeText: {
     fontSize: 11,
@@ -626,7 +649,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     letterSpacing: 0.5,
   },
   transcriptBlock: {
-    gap: 6,
+    gap: 8,
   },
   transcriptLine: {
     flexDirection: 'row',
@@ -649,16 +672,18 @@ const createStyles = (colors: any) => StyleSheet.create({
   originalText: {
     flex: 1,
     fontSize: 15,
-    lineHeight: 20,
+    lineHeight: 22,
     color: '#000',
     fontWeight: '400' as const,
+    letterSpacing: 0.2,
   },
   translatedText: {
     flex: 1,
     fontSize: 14,
-    lineHeight: 19,
+    lineHeight: 20,
     color: '#4A90E2',
     fontWeight: '400' as const,
+    letterSpacing: 0.2,
   },
   scrollContent: {
     flex: 1,
