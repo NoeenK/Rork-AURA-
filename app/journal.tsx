@@ -22,9 +22,7 @@ export default function JournalScreen() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showExportOptionsMenu, setShowExportOptionsMenu] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
-  const waveAnims = useRef(
-    Array.from({ length: 40 }, () => new Animated.Value(0.3))
-  ).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
   
   useEffect(() => {
     if (selectedFullEntry && selectedFullEntry.audioUri) {
@@ -36,14 +34,6 @@ export default function JournalScreen() {
       }
     };
   }, [selectedFullEntry]);
-
-  useEffect(() => {
-    if (isPlaying) {
-      startWaveAnimation();
-    } else {
-      stopWaveAnimation();
-    }
-  }, [isPlaying]);
 
   const loadSound = async () => {
     try {
@@ -67,43 +57,19 @@ export default function JournalScreen() {
       setDuration(status.durationMillis);
       setIsPlaying(status.isPlaying);
 
+      const progress = status.durationMillis > 0 ? status.positionMillis / status.durationMillis : 0;
+      progressAnim.setValue(progress);
+
       if (status.didJustFinish) {
         setIsPlaying(false);
         setPosition(0);
         sound?.setPositionAsync(0);
+        progressAnim.setValue(0);
       }
     }
   };
 
-  const startWaveAnimation = () => {
-    const animations = waveAnims.map((anim) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(anim, {
-            toValue: 0.2 + Math.random() * 0.8,
-            duration: 200 + Math.random() * 300,
-            useNativeDriver: false,
-          }),
-          Animated.timing(anim, {
-            toValue: 0.2,
-            duration: 200 + Math.random() * 300,
-            useNativeDriver: false,
-          }),
-        ])
-      )
-    );
 
-    animations.forEach((animation, index) => {
-      setTimeout(() => animation.start(), index * 30);
-    });
-  };
-
-  const stopWaveAnimation = () => {
-    waveAnims.forEach((anim) => {
-      anim.stopAnimation();
-      anim.setValue(0.3);
-    });
-  };
 
   const handleEntryPress = (entry: any) => {
     if (Platform.OS !== 'web') {
@@ -423,30 +389,59 @@ export default function JournalScreen() {
               </View>
             </ScrollView>
             
-            <View style={[styles.fixedAudioPlayer, { paddingBottom: insets.bottom + 20 }]}>
-              <View style={styles.waveformContainerBottom}>
-                {waveAnims.map((anim, index) => {
-                  const progress = duration > 0 ? position / duration : 0;
-                  const barProgress = index / waveAnims.length;
-                  const isPastProgress = barProgress <= progress;
-                  
-                  return (
-                    <Animated.View
-                      key={index}
-                      style={[
-                        styles.waveBarBottom,
-                        {
-                          height: isPlaying ? anim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [4, 32],
-                          }) : 16,
-                          backgroundColor: isPastProgress ? AuraColors.accentOrange : colors.textSecondary,
-                          opacity: isPastProgress ? 1 : 0.3,
-                        },
-                      ]}
+            <View style={[styles.fixedAudioPlayer, { paddingBottom: insets.bottom + 16 }]}>
+              <View style={styles.waveformAndSpeedRow}>
+                <View style={styles.waveformContainerBottom}>
+                  <View style={styles.staticWaveform}>
+                    {Array.from({ length: 60 }).map((_, index) => {
+                      const heights = [12, 20, 28, 24, 16, 32, 28, 20, 24, 18, 22, 30, 26, 18, 14, 24, 32, 28, 22, 26, 20, 24, 30, 26, 22, 18, 28, 24, 20, 16];
+                      const height = heights[index % heights.length];
+                      return (
+                        <View
+                          key={index}
+                          style={[styles.staticWaveBar, { height }]}
+                        />
+                      );
+                    })}
+                  </View>
+                  <Animated.View
+                    style={[
+                      styles.gradientOverlay,
+                      {
+                        width: progressAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ['0%', '100%'],
+                        }),
+                      },
+                    ]}
+                  >
+                    <LinearGradient
+                      colors={[AuraColors.accentOrange, AuraColors.accentOrange]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={StyleSheet.absoluteFillObject}
                     />
-                  );
-                })}
+                    <View style={styles.gradientWaveform}>
+                      {Array.from({ length: 60 }).map((_, index) => {
+                        const heights = [12, 20, 28, 24, 16, 32, 28, 20, 24, 18, 22, 30, 26, 18, 14, 24, 32, 28, 22, 26, 20, 24, 30, 26, 22, 18, 28, 24, 20, 16];
+                        const height = heights[index % heights.length];
+                        return (
+                          <View
+                            key={index}
+                            style={[styles.gradientWaveBar, { height }]}
+                          />
+                        );
+                      })}
+                    </View>
+                  </Animated.View>
+                </View>
+                <TouchableOpacity 
+                  onPress={handleSpeedToggle} 
+                  activeOpacity={0.7}
+                  style={styles.speedControlButton}
+                >
+                  <Text style={styles.playbackSpeedBottom}>x{playbackSpeed.toFixed(1)}</Text>
+                </TouchableOpacity>
               </View>
               
               <View style={styles.timeContainerBottom}>
@@ -460,7 +455,10 @@ export default function JournalScreen() {
                   onPress={handlePreviousEntry}
                   activeOpacity={0.7}
                 >
-                  <ChevronLeft color={colors.text} size={28} strokeWidth={3} />
+                  <View style={styles.navButtonInner}>
+                    <ChevronLeft color={colors.text} size={18} strokeWidth={2.5} />
+                    <View style={styles.navButtonBar} />
+                  </View>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -468,7 +466,7 @@ export default function JournalScreen() {
                   onPress={handleRewind}
                   activeOpacity={0.7}
                 >
-                  <RotateCcw color={colors.text} size={20} />
+                  <RotateCcw color={colors.text} size={18} />
                   <Text style={styles.smallControlLabel}>15</Text>
                 </TouchableOpacity>
 
@@ -483,7 +481,7 @@ export default function JournalScreen() {
                       <View style={styles.pauseBarBottom} />
                     </View>
                   ) : (
-                    <Play color={AuraColors.white} size={28} fill={AuraColors.white} />
+                    <Play color={AuraColors.white} size={24} fill={AuraColors.white} />
                   )}
                 </TouchableOpacity>
 
@@ -492,7 +490,7 @@ export default function JournalScreen() {
                   onPress={handleForward}
                   activeOpacity={0.7}
                 >
-                  <RotateCw color={colors.text} size={20} />
+                  <RotateCw color={colors.text} size={18} />
                   <Text style={styles.smallControlLabel}>15</Text>
                 </TouchableOpacity>
 
@@ -501,17 +499,12 @@ export default function JournalScreen() {
                   onPress={handleNextEntry}
                   activeOpacity={0.7}
                 >
-                  <ChevronRight color={colors.text} size={28} strokeWidth={3} />
+                  <View style={styles.navButtonInner}>
+                    <View style={styles.navButtonBar} />
+                    <ChevronRight color={colors.text} size={18} strokeWidth={2.5} />
+                  </View>
                 </TouchableOpacity>
               </View>
-              
-              <TouchableOpacity 
-                onPress={handleSpeedToggle} 
-                activeOpacity={0.7}
-                style={styles.speedControlButton}
-              >
-                <Text style={styles.playbackSpeedBottom}>x{playbackSpeed.toFixed(1)}</Text>
-              </TouchableOpacity>
             </View>
           </View>
         </Modal>
@@ -1021,7 +1014,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingTop: 12,
+    paddingTop: 20,
     paddingHorizontal: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
@@ -1029,64 +1022,109 @@ const createStyles = (colors: any) => StyleSheet.create({
     shadowRadius: 12,
     elevation: 12,
   },
-  waveformContainerBottom: {
+  waveformAndSpeedRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    height: 40,
-    gap: 2,
-    marginBottom: 12,
+    gap: 12,
+    marginBottom: 8,
   },
-  waveBarBottom: {
-    width: 3,
-    borderRadius: 1.5,
+  waveformContainerBottom: {
+    flex: 1,
+    height: 36,
+    borderRadius: 18,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  staticWaveform: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingHorizontal: 4,
+  },
+  staticWaveBar: {
+    width: 2,
+    backgroundColor: colors.textSecondary,
+    borderRadius: 1,
+    opacity: 0.3,
+  },
+  gradientOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    overflow: 'hidden',
+  },
+  gradientWaveform: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingHorizontal: 4,
+  },
+  gradientWaveBar: {
+    width: 2,
+    backgroundColor: AuraColors.white,
+    borderRadius: 1,
   },
   timeContainerBottom: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
     paddingHorizontal: 4,
   },
   timeTextBottom: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600' as const,
     color: colors.textSecondary,
   },
   playbackSpeedBottom: {
-    fontSize: 13,
-    fontWeight: '700' as const,
-    color: colors.text,
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: colors.textSecondary,
   },
   speedControlButton: {
-    position: 'absolute',
-    right: 0,
-    top: '50%',
-    transform: [{ translateY: -18 }],
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: colors.background,
-    borderRadius: 8,
+    paddingHorizontal: 0,
+    minWidth: 32,
   },
   playerControlsBottom: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 4,
-    position: 'relative',
+    marginBottom: 8,
   },
   navButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  navButtonInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: -2,
+  },
+  navButtonBar: {
+    width: 2,
+    height: 14,
+    backgroundColor: colors.text,
+    borderRadius: 1,
+  },
   smallControlButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1094,14 +1132,14 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   smallControlLabel: {
     position: 'absolute',
-    fontSize: 8,
+    fontSize: 7,
     fontWeight: '700' as const,
     color: colors.text,
   },
   playButtonBottom: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: AuraColors.accentOrange,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1113,11 +1151,11 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   pauseIconBottom: {
     flexDirection: 'row',
-    gap: 5,
+    gap: 4,
   },
   pauseBarBottom: {
     width: 3,
-    height: 20,
+    height: 16,
     backgroundColor: AuraColors.white,
     borderRadius: 1.5,
   },

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView, NativeModules } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Mic, Square, Calendar, Settings, BookOpen, MessageCircle, X } from 'lucide-react-native';
 import { Audio } from 'expo-av';
@@ -212,7 +212,63 @@ export default function MainScreen() {
   const startLiveTranscription = async (rec: Audio.Recording) => {
     setLiveTranscript('Listening...');
     
-    const CHUNK_INTERVAL = 2000;
+    if (Platform.OS === 'ios') {
+      try {
+        if (typeof (global as any).SpeechRecognition !== 'undefined') {
+          const SpeechRecognition = (global as any).SpeechRecognition || (global as any).webkitSpeechRecognition;
+          const recognition = new SpeechRecognition();
+          recognition.continuous = true;
+          recognition.interimResults = true;
+          recognition.lang = 'en-US';
+          
+          recognition.onresult = (event: any) => {
+            let interimTranscript = '';
+            let finalTranscript = '';
+            
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+              const transcript = event.results[i][0].transcript;
+              if (event.results[i].isFinal) {
+                finalTranscript += transcript + ' ';
+              } else {
+                interimTranscript += transcript;
+              }
+            }
+            
+            const fullText = (accumulatedTranscript + ' ' + finalTranscript + interimTranscript).trim();
+            setLiveTranscript(fullText);
+            
+            if (finalTranscript) {
+              setAccumulatedTranscript(prev => (prev + ' ' + finalTranscript).trim());
+              const words = finalTranscript.trim().split(' ');
+              if (words.length > 0) {
+                setCurrentWord(words[words.length - 1]);
+              }
+            } else if (interimTranscript) {
+              const words = interimTranscript.trim().split(' ');
+              if (words.length > 0) {
+                setCurrentWord(words[words.length - 1]);
+              }
+            }
+          };
+          
+          recognition.onerror = (event: any) => {
+            console.error('Speech recognition error:', event.error);
+          };
+          
+          recognition.onend = () => {
+            console.log('Speech recognition ended');
+          };
+          
+          recognition.start();
+          console.log('Native speech recognition started');
+          return;
+        }
+      } catch (error) {
+        console.log('Native speech recognition not available, falling back to OpenAI:', error);
+      }
+    }
+    
+    const CHUNK_INTERVAL = 3000;
     let lastTranscribedDuration = 0;
     
     transcriptionInterval.current = setInterval(async () => {
@@ -225,7 +281,7 @@ export default function MainScreen() {
       
       try {
         const status = await recordingRef.current.getStatusAsync();
-        if (!status.isRecording || status.durationMillis < 1500) {
+        if (!status.isRecording || status.durationMillis < 2000) {
           return;
         }
         
@@ -636,14 +692,17 @@ export default function MainScreen() {
                   },
                 ]}
               >
-                <TouchableOpacity
-                  style={[styles.menuButton, styles.journalMenuButton]}
-                  onPress={handleJournal}
-                  activeOpacity={0.8}
-                >
-                  <BookOpen color={AuraColors.white} size={24} />
-                  <Text style={styles.menuButtonLabel}>Journal</Text>
-                </TouchableOpacity>
+                <View style={styles.glowContainer}>
+                  <View style={[styles.glowRing, { opacity: menuAnim }]} />
+                  <TouchableOpacity
+                    style={[styles.menuButton, styles.journalMenuButton]}
+                    onPress={handleJournal}
+                    activeOpacity={0.8}
+                  >
+                    <BookOpen color={AuraColors.white} size={24} />
+                    <Text style={styles.menuButtonLabel}>Journal</Text>
+                  </TouchableOpacity>
+                </View>
               </Animated.View>
 
               <Animated.View
@@ -658,14 +717,17 @@ export default function MainScreen() {
                   },
                 ]}
               >
-                <TouchableOpacity
-                  style={[styles.menuButton, styles.recordMenuButton]}
-                  onPress={startRecording}
-                  activeOpacity={0.8}
-                >
-                  <Mic color={AuraColors.white} size={24} />
-                  <Text style={styles.menuButtonLabel}>Record</Text>
-                </TouchableOpacity>
+                <View style={styles.glowContainer}>
+                  <View style={[styles.glowRing, { opacity: menuAnim }]} />
+                  <TouchableOpacity
+                    style={[styles.menuButton, styles.recordMenuButton]}
+                    onPress={startRecording}
+                    activeOpacity={0.8}
+                  >
+                    <Mic color={AuraColors.white} size={24} />
+                    <Text style={styles.menuButtonLabel}>Record</Text>
+                  </TouchableOpacity>
+                </View>
               </Animated.View>
 
               <Animated.View
@@ -681,14 +743,17 @@ export default function MainScreen() {
                   },
                 ]}
               >
-                <TouchableOpacity
-                  style={[styles.menuButton, styles.askMenuButton]}
-                  onPress={handleAsk}
-                  activeOpacity={0.8}
-                >
-                  <MessageCircle color={AuraColors.white} size={24} />
-                  <Text style={styles.menuButtonLabel}>Ask AURA</Text>
-                </TouchableOpacity>
+                <View style={styles.glowContainer}>
+                  <View style={[styles.glowRing, { opacity: menuAnim }]} />
+                  <TouchableOpacity
+                    style={[styles.menuButton, styles.askMenuButton]}
+                    onPress={handleAsk}
+                    activeOpacity={0.8}
+                  >
+                    <MessageCircle color={AuraColors.white} size={24} />
+                    <Text style={styles.menuButtonLabel}>Ask AURA</Text>
+                  </TouchableOpacity>
+                </View>
               </Animated.View>
 
               <TouchableOpacity
@@ -867,6 +932,24 @@ const createStyles = (colors: any) => StyleSheet.create({
   expandedButton: {
     position: 'absolute',
     alignItems: 'center',
+  },
+  glowContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  glowRing: {
+    position: 'absolute',
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 2,
+    borderColor: AuraColors.accentOrange,
+    shadowColor: AuraColors.accentOrange,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 12,
+    elevation: 8,
   },
   menuButton: {
     width: 70,

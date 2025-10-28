@@ -1,7 +1,7 @@
-import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Platform, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, Sun, Moon, ChevronRight, Bell, Lock, HelpCircle, User } from 'lucide-react-native';
+import { X, Sun, Moon, ChevronRight, Bell, Lock, HelpCircle, User, Mic, Info, LogOut } from 'lucide-react-native';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,6 +11,9 @@ import { router } from 'expo-router';
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { theme, setTheme, colors } = useTheme();
+  const [audioQuality, setAudioQuality] = useState<'low' | 'medium' | 'high'>('high');
+  const [showAudioQualityModal, setShowAudioQualityModal] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
   
   const handleThemeChange = (newTheme: 'light' | 'dark') => {
     if (Platform.OS !== 'web') {
@@ -19,10 +22,42 @@ export default function SettingsScreen() {
     setTheme(newTheme);
   };
 
-  const handleMenuPress = () => {
+  const handleMenuPress = (action: string) => {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
+    
+    switch (action) {
+      case 'profile':
+        console.log('Profile settings');
+        break;
+      case 'notifications':
+        console.log('Notifications');
+        break;
+      case 'privacy':
+        console.log('Privacy & Security');
+        break;
+      case 'help':
+        console.log('Help & Support');
+        break;
+      case 'audioQuality':
+        setShowAudioQualityModal(true);
+        break;
+      case 'about':
+        setShowAboutModal(true);
+        break;
+      case 'logout':
+        console.log('Logout');
+        break;
+    }
+  };
+  
+  const handleAudioQualitySelect = (quality: 'low' | 'medium' | 'high') => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    setAudioQuality(quality);
+    setShowAudioQualityModal(false);
   };
 
   const styles = createStyles(colors);
@@ -78,7 +113,7 @@ export default function SettingsScreen() {
           <View style={styles.menuList}>
             <TouchableOpacity
               style={styles.menuItem}
-              onPress={handleMenuPress}
+              onPress={() => handleMenuPress('profile')}
             >
               <View style={styles.menuItemLeft}>
                 <User color={colors.text} size={22} />
@@ -89,7 +124,7 @@ export default function SettingsScreen() {
 
             <TouchableOpacity
               style={styles.menuItem}
-              onPress={handleMenuPress}
+              onPress={() => handleMenuPress('notifications')}
             >
               <View style={styles.menuItemLeft}>
                 <Bell color={colors.text} size={22} />
@@ -100,7 +135,7 @@ export default function SettingsScreen() {
 
             <TouchableOpacity
               style={styles.menuItem}
-              onPress={handleMenuPress}
+              onPress={() => handleMenuPress('privacy')}
             >
               <View style={styles.menuItemLeft}>
                 <Lock color={colors.text} size={22} />
@@ -111,7 +146,7 @@ export default function SettingsScreen() {
 
             <TouchableOpacity
               style={[styles.menuItem, styles.menuItemLast]}
-              onPress={handleMenuPress}
+              onPress={() => handleMenuPress('help')}
             >
               <View style={styles.menuItemLeft}>
                 <HelpCircle color={colors.text} size={22} />
@@ -120,8 +155,136 @@ export default function SettingsScreen() {
               <ChevronRight color={colors.textSecondary} size={20} />
             </TouchableOpacity>
           </View>
+
+          <Text style={styles.sectionTitle}>Audio & Recording</Text>
+          
+          <View style={styles.menuList}>
+            <TouchableOpacity
+              style={[styles.menuItem, styles.menuItemLast]}
+              onPress={() => handleMenuPress('audioQuality')}
+            >
+              <View style={styles.menuItemLeft}>
+                <Mic color={colors.text} size={22} />
+                <View>
+                  <Text style={styles.menuText}>Audio Quality</Text>
+                  <Text style={styles.menuSubtext}>
+                    {audioQuality === 'low' ? 'Low (32 kbps)' : audioQuality === 'medium' ? 'Medium (64 kbps)' : 'High (128 kbps)'}
+                  </Text>
+                </View>
+              </View>
+              <ChevronRight color={colors.textSecondary} size={20} />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.sectionTitle}>Other</Text>
+          
+          <View style={styles.menuList}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => handleMenuPress('about')}
+            >
+              <View style={styles.menuItemLeft}>
+                <Info color={colors.text} size={22} />
+                <Text style={styles.menuText}>About AURA</Text>
+              </View>
+              <ChevronRight color={colors.textSecondary} size={20} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.menuItem, styles.menuItemLast]}
+              onPress={() => handleMenuPress('logout')}
+            >
+              <View style={styles.menuItemLeft}>
+                <LogOut color={colors.text} size={22} />
+                <Text style={styles.menuText}>Sign Out</Text>
+              </View>
+              <ChevronRight color={colors.textSecondary} size={20} />
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       </View>
+
+      <Modal
+        visible={showAudioQualityModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowAudioQualityModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowAudioQualityModal(false)}
+        >
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Audio Quality</Text>
+            <Text style={styles.modalSubtitle}>Choose recording quality</Text>
+            
+            <TouchableOpacity
+              style={[styles.qualityOption, audioQuality === 'low' && styles.qualityOptionActive]}
+              onPress={() => handleAudioQualitySelect('low')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.qualityOptionContent}>
+                <Text style={[styles.qualityOptionTitle, audioQuality === 'low' && styles.qualityOptionTitleActive]}>Low</Text>
+                <Text style={styles.qualityOptionSubtitle}>32 kbps • Saves storage</Text>
+              </View>
+              {audioQuality === 'low' && (
+                <View style={styles.checkmark} />
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.qualityOption, audioQuality === 'medium' && styles.qualityOptionActive]}
+              onPress={() => handleAudioQualitySelect('medium')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.qualityOptionContent}>
+                <Text style={[styles.qualityOptionTitle, audioQuality === 'medium' && styles.qualityOptionTitleActive]}>Medium</Text>
+                <Text style={styles.qualityOptionSubtitle}>64 kbps • Balanced</Text>
+              </View>
+              {audioQuality === 'medium' && (
+                <View style={styles.checkmark} />
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.qualityOption, audioQuality === 'high' && styles.qualityOptionActive]}
+              onPress={() => handleAudioQualitySelect('high')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.qualityOptionContent}>
+                <Text style={[styles.qualityOptionTitle, audioQuality === 'high' && styles.qualityOptionTitleActive]}>High</Text>
+                <Text style={styles.qualityOptionSubtitle}>128 kbps • Best quality</Text>
+              </View>
+              {audioQuality === 'high' && (
+                <View style={styles.checkmark} />
+              )}
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal
+        visible={showAboutModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowAboutModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowAboutModal(false)}
+        >
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>About AURA</Text>
+            <View style={styles.aboutContent}>
+              <Text style={styles.aboutText}>AURA is your intelligent voice journal assistant.</Text>
+              <Text style={styles.aboutText}>Version 1.0.0</Text>
+              <Text style={styles.aboutText}>© 2025 AURA</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -233,5 +396,88 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '500' as const,
     color: colors.text,
+  },
+  menuSubtext: {
+    fontSize: 13,
+    fontWeight: '400' as const,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContainer: {
+    backgroundColor: colors.card,
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: '700' as const,
+    color: colors.text,
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 24,
+  },
+  qualityOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: colors.background,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  qualityOptionActive: {
+    borderColor: AuraColors.accentOrange,
+    backgroundColor: colors.background,
+  },
+  qualityOptionContent: {
+    flex: 1,
+  },
+  qualityOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: colors.text,
+    marginBottom: 4,
+  },
+  qualityOptionTitleActive: {
+    color: AuraColors.accentOrange,
+    fontWeight: '700' as const,
+  },
+  qualityOptionSubtitle: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  checkmark: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: AuraColors.accentOrange,
+  },
+  aboutContent: {
+    paddingVertical: 16,
+    gap: 12,
+  },
+  aboutText: {
+    fontSize: 15,
+    color: colors.text,
+    lineHeight: 22,
   },
 });
