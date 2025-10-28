@@ -421,8 +421,8 @@ export default function MainScreen() {
                 style={[
                   styles.circleOptionSmall,
                   {
-                    bottom: 20,
-                    left: -50,
+                    bottom: 8,
+                    left: -85,
                     transform: [{ scale: circleScales[0] }],
                     opacity: circleOpacities[0],
                   },
@@ -433,8 +433,7 @@ export default function MainScreen() {
                   onPress={() => handleRecordingOptionSelect('journal')}
                   activeOpacity={0.8}
                 >
-                  <BookText color={AuraColors.white} size={24} />
-                  <Text style={styles.circleOptionTextSmall}>Journal</Text>
+                  <BookText color={AuraColors.white} size={20} />
                 </TouchableOpacity>
               </Animated.View>
 
@@ -442,7 +441,7 @@ export default function MainScreen() {
                 style={[
                   styles.circleOptionSmall,
                   {
-                    bottom: 35,
+                    bottom: 40,
                     transform: [{ scale: circleScales[1] }],
                     opacity: circleOpacities[1],
                   },
@@ -453,8 +452,7 @@ export default function MainScreen() {
                   onPress={() => handleRecordingOptionSelect('record')}
                   activeOpacity={0.8}
                 >
-                  <Mic color={AuraColors.white} size={24} />
-                  <Text style={styles.circleOptionTextSmall}>Record</Text>
+                  <Mic color={AuraColors.white} size={20} />
                 </TouchableOpacity>
               </Animated.View>
 
@@ -462,8 +460,8 @@ export default function MainScreen() {
                 style={[
                   styles.circleOptionSmall,
                   {
-                    bottom: 20,
-                    right: -50,
+                    bottom: 8,
+                    right: -85,
                     transform: [{ scale: circleScales[2] }],
                     opacity: circleOpacities[2],
                   },
@@ -474,8 +472,7 @@ export default function MainScreen() {
                   onPress={() => handleRecordingOptionSelect('ask')}
                   activeOpacity={0.8}
                 >
-                  <MessageSquare color={AuraColors.white} size={24} />
-                  <Text style={styles.circleOptionTextSmall}>Ask Aura</Text>
+                  <MessageSquare color={AuraColors.white} size={20} />
                 </TouchableOpacity>
               </Animated.View>
             </View>
@@ -680,33 +677,25 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   circleOptionSmall: {
     position: 'absolute',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 140, 66, 0.4)',
+    width: 65,
+    height: 65,
+    borderRadius: 32.5,
+    backgroundColor: 'rgba(255, 140, 66, 0.9)',
     borderWidth: 2,
-    borderColor: 'rgba(255, 140, 66, 0.7)',
+    borderColor: AuraColors.accentOrange,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: AuraColors.accentOrange,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.7,
-    shadowRadius: 24,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.9,
+    shadowRadius: 28,
+    elevation: 12,
   },
   circleOptionInnerSmall: {
     width: '100%',
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  circleOptionTextSmall: {
-    fontSize: 9,
-    fontWeight: '700' as const,
-    color: AuraColors.white,
-    marginTop: 2,
-    letterSpacing: 0.3,
-    textAlign: 'center',
   },
   leftGlow: {
     position: 'absolute',

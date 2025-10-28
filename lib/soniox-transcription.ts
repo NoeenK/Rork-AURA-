@@ -146,12 +146,10 @@ export async function transcribeAudioFile(uri: string): Promise<{
     formData.append('enable_global_speaker_diarization', 'true');
 
     console.log('Sending request to Soniox API...');
+    console.log('API Key:', SONIOX_API_KEY.substring(0, 8) + '...');
     
-    const response = await fetch('https://api.soniox.com/transcribe-async', {
+    const response = await fetch(`https://api.soniox.com/transcribe-async?api_key=${SONIOX_API_KEY}`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${SONIOX_API_KEY}`,
-      },
       body: formData,
     }).catch(err => {
       console.error('Fetch error:', err);
@@ -159,14 +157,19 @@ export async function transcribeAudioFile(uri: string): Promise<{
     });
 
     console.log('Response status:', response.status);
+    console.log('Response headers:', JSON.stringify(Array.from(response.headers.entries())));
     
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Error response:', errorText);
-      throw new Error('Transcription failed: ' + response.statusText + ' - ' + errorText);
+      console.error('Full error details:', { status: response.status, statusText: response.statusText });
+      throw new Error(`Transcription failed: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
-    const data = await response.json();
+    const responseText = await response.text();
+    console.log('Raw response:', responseText);
+    
+    const data = JSON.parse(responseText);
     console.log('Transcription result:', JSON.stringify(data, null, 2));
     
     const speakers: SpeakerSegment[] = [];
