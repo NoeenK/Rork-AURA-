@@ -5,7 +5,7 @@ import { Square } from 'lucide-react-native';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
-import { transcribeAudioFile, generateSummary, generateAuraSummary, extractCalendarEvents, transcribeAudioChunk, SpeakerSegment, SonioxRealtimeTranscription, TranscriptionCallback, Token } from '@/lib/soniox-transcription';
+import { transcribeAudioFile, generateSummary, generateAuraSummary, extractCalendarEvents, SpeakerSegment, SonioxRealtimeTranscription, TranscriptionCallback, Token } from '@/lib/soniox-transcription';
 import * as Haptics from 'expo-haptics';
 import { useJournal } from '@/contexts/JournalContext';
 import { router } from 'expo-router';
@@ -19,10 +19,7 @@ export default function RecordingScreen() {
   const { addEntry } = useJournal();
   
   const [recordingState, setRecordingState] = useState<RecordingState>('recording');
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [liveTranscript, setLiveTranscript] = useState<string>('');
   const [accumulatedTranscript, setAccumulatedTranscript] = useState<string>('');
-  const [currentWord, setCurrentWord] = useState<string>('');
   const [currentSpeaker, setCurrentSpeaker] = useState<string>('');
   const [speakers, setSpeakers] = useState<Map<string, string>>(new Map());
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
@@ -91,56 +88,72 @@ export default function RecordingScreen() {
     });
   }, [pulseAnim, waveAnims]);
 
-  useEffect(() => {
-    startRecording();
-    return () => {
-      if (recording) {
-        recording.stopAndUnloadAsync().catch(console.error);
+  const startLiveTranscription = useCallback(async () => {
+    
+    if (Platform.OS === 'web') {
+      try {
+        const transcriptionService = new SonioxRealtimeTranscription();
+        sonioxTranscription.current = transcriptionService;
+        
+        const callbacks: TranscriptionCallback = {
+          onTranscript: (text: string, isFinal: boolean, speaker?: string) => {
+            console.log('Received transcript:', text, 'Final:', isFinal, 'Speaker:', speaker);
+            
+            if (speaker && speaker !== currentSpeaker) {
+              setCurrentSpeaker(speaker);
+              setSpeakers(prev => {
+                const newSpeakers = new Map(prev);
+                if (!newSpeakers.has(speaker)) {
+                  newSpeakers.set(speaker, speaker);
+                }
+                return newSpeakers;
+              });
+            }
+            
+            if (isFinal) {
+              setAccumulatedTranscript(prev => {
+                const speakerPrefix = speaker ? `${speaker}: ` : '';
+                const newText = prev ? `${prev}\n\n${speakerPrefix}${text}` : `${speakerPrefix}${text}`;
+                
+                if (speaker) {
+                  speakersRef.current.push({ speaker, text });
+                }
+                
+                return newText;
+              });
+            }
+          },
+          onError: (error: Error) => {
+            console.error('Soniox transcription error:', error);
+          },
+          onTokens: (newTokens: Token[]) => {
+            console.log('Received tokens:', newTokens.length);
+            setTokens(newTokens);
+          },
+        };
+        
+        await transcriptionService.connect(callbacks);
+        console.log('Soniox WebSocket connected');
+        
+        await transcriptionService.startAudioCapture();
+        console.log('Audio capture started with speaker diarization, language ID, and endpoint detection');
+        
+      } catch (error) {
+        console.error('Failed to start web live transcription:', error);
       }
-      if (durationInterval.current) {
-        clearInterval(durationInterval.current);
-      }
-      if (transcriptionInterval.current) {
-        clearInterval(transcriptionInterval.current);
-      }
-      Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-      }).catch(console.error);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (recordingState === 'recording') {
-      startPulseAnimation();
-      startWaveAnimation();
-      
-      durationInterval.current = setInterval(() => {
-        setRecordingDuration((prev) => prev + 1);
-      }, 1000) as any;
-    } else if (recordingState === 'paused') {
-      stopAnimations();
-      if (durationInterval.current) {
-        clearInterval(durationInterval.current);
-        durationInterval.current = null;
-      }
+    } else {
+      console.log('Live transcription unavailable on mobile');
     }
+  }, [currentSpeaker]);
 
-    return () => {
-      if (durationInterval.current) {
-        clearInterval(durationInterval.current);
-      }
-    };
-  }, [recordingState, startPulseAnimation, startWaveAnimation, stopAnimations]);
-
-  const startRecording = async () => {
+  const startRecording = useCallback(async () => {
     try {
-      if (recording) {
+      if (recordingRef.current) {
         try {
-          await recording.stopAndUnloadAsync();
+          await recordingRef.current.stopAndUnloadAsync();
         } catch (e) {
           console.log('Error stopping previous recording:', e);
         }
-        setRecording(null);
         recordingRef.current = null;
       }
 
@@ -175,91 +188,68 @@ export default function RecordingScreen() {
         },
       });
 
-      setRecording(newRecording);
       recordingRef.current = newRecording;
       setRecordingState('recording');
-      setLiveTranscript('');
       setAccumulatedTranscript('');
       setRecordingDuration(0);
       console.log('Recording started');
 
-      startLiveTranscription(newRecording);
+      startLiveTranscription();
     } catch (error) {
       console.error('Failed to start recording:', error);
       router.back();
     }
-  };
+  }, [startLiveTranscription]);
 
-  const startLiveTranscription = async (rec: Audio.Recording) => {
-    setLiveTranscript('Listening...');
-    
-    if (Platform.OS === 'web') {
-      try {
-        const transcriptionService = new SonioxRealtimeTranscription();
-        sonioxTranscription.current = transcriptionService;
-        
-        const callbacks: TranscriptionCallback = {
-          onTranscript: (text: string, isFinal: boolean, speaker?: string) => {
-            console.log('Received transcript:', text, 'Final:', isFinal, 'Speaker:', speaker);
-            
-            if (speaker && speaker !== currentSpeaker) {
-              setCurrentSpeaker(speaker);
-              setSpeakers(prev => {
-                const newSpeakers = new Map(prev);
-                if (!newSpeakers.has(speaker)) {
-                  newSpeakers.set(speaker, speaker);
-                }
-                return newSpeakers;
-              });
-            }
-            
-            if (isFinal) {
-              setAccumulatedTranscript(prev => {
-                const speakerPrefix = speaker ? `${speaker}: ` : '';
-                const newText = prev ? `${prev}\n\n${speakerPrefix}${text}` : `${speakerPrefix}${text}`;
-                setLiveTranscript(newText);
-                
-                if (speaker) {
-                  speakersRef.current.push({ speaker, text });
-                }
-                
-                return newText;
-              });
-              setCurrentWord('');
-            } else {
-              const words = text.trim().split(' ');
-              if (words.length > 0) {
-                setCurrentWord(words[words.length - 1]);
-              }
-            }
-          },
-          onError: (error: Error) => {
-            console.error('Soniox transcription error:', error);
-            setLiveTranscript('Transcription error. Please try again.');
-          },
-          onTokens: (newTokens: Token[]) => {
-            console.log('Received tokens:', newTokens.length);
-            setTokens(newTokens);
-          },
-        };
-        
-        await transcriptionService.connect(callbacks);
-        console.log('Soniox WebSocket connected');
-        
-        await transcriptionService.startAudioCapture();
-        console.log('Audio capture started with speaker diarization, language ID, and endpoint detection');
-        
-      } catch (error) {
-        console.error('Failed to start web live transcription:', error);
-        setLiveTranscript('Live transcription unavailable');
+  useEffect(() => {
+    startRecording();
+    return () => {
+      if (recordingRef.current) {
+        recordingRef.current.stopAndUnloadAsync()
+          .catch(error => {
+            console.log('Cleanup recording error (safe to ignore):', error.message);
+          });
       }
-    } else {
-      setLiveTranscript('Live transcription unavailable on mobile');
+      if (durationInterval.current) {
+        clearInterval(durationInterval.current);
+      }
+      if (transcriptionInterval.current) {
+        clearInterval(transcriptionInterval.current);
+      }
+      if (sonioxTranscription.current) {
+        sonioxTranscription.current.disconnect();
+      }
+      Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+      }).catch(console.error);
+    };
+  }, [startRecording]);
+
+  useEffect(() => {
+    if (recordingState === 'recording') {
+      startPulseAnimation();
+      startWaveAnimation();
+      
+      durationInterval.current = setInterval(() => {
+        setRecordingDuration((prev) => prev + 1);
+      }, 1000) as any;
+    } else if (recordingState === 'paused') {
+      stopAnimations();
+      if (durationInterval.current) {
+        clearInterval(durationInterval.current);
+        durationInterval.current = null;
+      }
     }
-  };
+
+    return () => {
+      if (durationInterval.current) {
+        clearInterval(durationInterval.current);
+      }
+    };
+  }, [recordingState, startPulseAnimation, startWaveAnimation, stopAnimations]);
 
   const stopRecording = async () => {
-    if (!recording) return;
+    if (!recordingRef.current) return;
 
     try {
       console.log('Stopping recording...');
@@ -274,17 +264,15 @@ export default function RecordingScreen() {
         sonioxTranscription.current = null;
       }
       
-      await recording.stopAndUnloadAsync();
+      const uri = recordingRef.current.getURI();
+      await recordingRef.current.stopAndUnloadAsync();
+      console.log('Recording stopped, URI:', uri);
+      
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
       });
-
-      const uri = recording.getURI();
-      console.log('Recording stopped, URI:', uri);
       
-      setRecording(null);
       recordingRef.current = null;
-      setCurrentWord('');
 
       router.back();
 
@@ -295,6 +283,7 @@ export default function RecordingScreen() {
       }
     } catch (error) {
       console.error('Failed to stop recording:', error);
+      recordingRef.current = null;
       router.back();
     }
   };
@@ -349,7 +338,7 @@ export default function RecordingScreen() {
   };
 
   const handlePause = async () => {
-    if (!recording) return;
+    if (!recordingRef.current) return;
     
     try {
       if (Platform.OS !== 'web') {
@@ -357,12 +346,12 @@ export default function RecordingScreen() {
       }
       
       if (isPaused) {
-        await recording.startAsync();
+        await recordingRef.current.startAsync();
         setIsPaused(false);
         setRecordingState('recording');
         console.log('Recording resumed');
       } else {
-        await recording.pauseAsync();
+        await recordingRef.current.pauseAsync();
         setIsPaused(true);
         setRecordingState('paused');
         console.log('Recording paused');
