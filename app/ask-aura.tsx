@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Keyboard, PanResponder, TouchableWithoutFeedback, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, Mic, ArrowUp, History } from 'lucide-react-native';
+import { X, Mic, ArrowUp, History, FileText, Megaphone, List, CheckSquare, Mail, Pen, Sparkles } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useJournal } from '@/contexts/JournalContext';
 import { AuraColors } from '@/constants/colors';
@@ -11,21 +11,25 @@ import { router } from 'expo-router';
 import { generateText } from '@rork/toolkit-sdk';
 import { Audio } from 'expo-av';
 
+type Mode = 'ask' | 'create';
+
 export default function AskAuraScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { entries } = useJournal();
+  const [mode, setMode] = useState<Mode>('ask');
   const [query, setQuery] = useState('');
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
+  const [showCreateOptions, setShowCreateOptions] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const historyAnim = useRef(new Animated.Value(-300)).current;
   const inputAnim = useRef(new Animated.Value(0)).current;
+  const createAnim = useRef(new Animated.Value(0)).current;
 
   const inputRef = useRef<TextInput>(null);
   
@@ -48,6 +52,29 @@ export default function AskAuraScreen() {
     inputRef.current?.focus();
   };
 
+  const toggleMode = (newMode: Mode) => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    setMode(newMode);
+    if (newMode === 'create') {
+      setShowCreateOptions(true);
+      Animated.spring(createAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        damping: 15,
+        stiffness: 120,
+      }).start();
+    } else {
+      Animated.spring(createAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        damping: 15,
+        stiffness: 120,
+      }).start(() => setShowCreateOptions(false));
+    }
+  };
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -66,7 +93,6 @@ export default function AskAuraScreen() {
     const keyboardWillShow = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
       (e) => {
-        setKeyboardHeight(e.endCoordinates.height);
         Animated.spring(inputAnim, {
           toValue: -e.endCoordinates.height,
           useNativeDriver: true,
@@ -78,7 +104,6 @@ export default function AskAuraScreen() {
     const keyboardWillHide = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
       () => {
-        setKeyboardHeight(0);
         Animated.spring(inputAnim, {
           toValue: 0,
           useNativeDriver: true,
@@ -228,7 +253,12 @@ export default function AskAuraScreen() {
     }
   };
 
-
+  const handleCreateOption = (option: string) => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    console.log('Selected create option:', option);
+  };
 
   const styles = createStyles(colors);
 
@@ -251,13 +281,32 @@ export default function AskAuraScreen() {
           <TouchableOpacity onPress={toggleHistory} style={styles.historyButton}>
             <History color={colors.text} size={24} />
           </TouchableOpacity>
-          <Text style={styles.title}>Ask AURA</Text>
+          
+          <View style={styles.modeToggle}>
+            <TouchableOpacity
+              style={[styles.modeButton, mode === 'ask' && styles.modeButtonActive]}
+              onPress={() => toggleMode('ask')}
+            >
+              <Text style={[styles.modeButtonText, mode === 'ask' && styles.modeButtonTextActive]}>
+                Ask
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modeButton, mode === 'create' && styles.modeButtonActive]}
+              onPress={() => toggleMode('create')}
+            >
+              <Text style={[styles.modeButtonText, mode === 'create' && styles.modeButtonTextActive]}>
+                Create
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
             <X color={colors.text} size={28} />
           </TouchableOpacity>
         </View>
         
-        {messages.length === 0 ? (
+        {mode === 'ask' && messages.length === 0 ? (
           <View style={styles.logoContainer} {...panResponder.panHandlers}>
             <View style={styles.logoWrapper}>
               <Image 
@@ -266,38 +315,112 @@ export default function AskAuraScreen() {
                 resizeMode="contain"
               />
             </View>
+            <Text style={styles.infoText}>
+              Ask anything about your notes. Since October 21, 2025, you&apos;ve recorded a total of {entries.length} notes.
+            </Text>
           </View>
-        ) : (
+        ) : mode === 'ask' ? (
           <View style={styles.messagesWrapper}>
             <ScrollView
-            ref={scrollViewRef}
-            style={styles.messagesContainer}
-            contentContainerStyle={[styles.messagesContent, { paddingBottom: insets.bottom + 140 }]}
-            showsVerticalScrollIndicator={false}
-            {...panResponder.panHandlers}
-          >
-            {messages.map((message, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.messageCard,
-                  message.role === 'user' ? styles.userMessage : styles.assistantMessage,
-                ]}
-              >
-                <Text style={styles.messageRole}>
-                  {message.role === 'user' ? 'You' : 'AURA'}
-                </Text>
-                <Text style={styles.messageText}>{message.content}</Text>
-              </View>
-            ))}
-            {isLoading && (
-              <View style={[styles.messageCard, styles.assistantMessage]}>
-                <Text style={styles.messageRole}>AURA</Text>
-                <ActivityIndicator color={AuraColors.accentOrange} style={styles.loader} />
-              </View>
-            )}
-          </ScrollView>
+              ref={scrollViewRef}
+              style={styles.messagesContainer}
+              contentContainerStyle={[styles.messagesContent, { paddingBottom: insets.bottom + 140 }]}
+              showsVerticalScrollIndicator={false}
+              {...panResponder.panHandlers}
+            >
+              {messages.map((message, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.messageCard,
+                    message.role === 'user' ? styles.userMessage : styles.assistantMessage,
+                  ]}
+                >
+                  <Text style={styles.messageRole}>
+                    {message.role === 'user' ? 'You' : 'AURA'}
+                  </Text>
+                  <Text style={styles.messageText}>{message.content}</Text>
+                </View>
+              ))}
+              {isLoading && (
+                <View style={[styles.messageCard, styles.assistantMessage]}>
+                  <Text style={styles.messageRole}>AURA</Text>
+                  <ActivityIndicator color={AuraColors.accentOrange} style={styles.loader} />
+                </View>
+              )}
+            </ScrollView>
           </View>
+        ) : null}
+
+        {showCreateOptions && (
+          <Animated.View style={[styles.createOptionsContainer, { opacity: createAnim }]}>
+            <ScrollView
+              style={styles.createScroll}
+              contentContainerStyle={[styles.createContent, { paddingBottom: insets.bottom + 140 }]}
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.createTitle}>1. What do you want to create?</Text>
+              
+              <View style={styles.optionsGrid}>
+                <TouchableOpacity style={styles.createOption} onPress={() => handleCreateOption('summary')}>
+                  <FileText color={colors.text} size={24} />
+                  <Text style={styles.createOptionText}>Summary</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.createOption} onPress={() => handleCreateOption('meeting')}>
+                  <List color={colors.text} size={24} />
+                  <Text style={styles.createOptionText}>Meeting report</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.createOption} onPress={() => handleCreateOption('list')}>
+                  <List color={colors.text} size={24} />
+                  <Text style={styles.createOptionText}>List points</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.createOption} onPress={() => handleCreateOption('todo')}>
+                  <CheckSquare color={colors.text} size={24} />
+                  <Text style={styles.createOptionText}>To-do list</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.createOption} onPress={() => handleCreateOption('tweet')}>
+                  <Megaphone color={colors.text} size={24} />
+                  <Text style={styles.createOptionText}>Tweet</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.createOption} onPress={() => handleCreateOption('email')}>
+                  <Mail color={colors.text} size={24} />
+                  <Text style={styles.createOptionText}>Email</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.createOption} onPress={() => handleCreateOption('blog')}>
+                  <Pen color={colors.text} size={24} />
+                  <Text style={styles.createOptionText}>Blog post</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.createOption} onPress={() => handleCreateOption('cleanup')}>
+                  <Sparkles color={colors.text} size={24} />
+                  <Text style={styles.createOptionText}>Cleanup</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.createOptionCustom} onPress={() => handleCreateOption('custom')}>
+                  <Text style={styles.createOptionCustomText}>+ Custom</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.createSubtitle}>2. Select the note</Text>
+              
+              {entries.slice(0, 5).map((entry) => (
+                <TouchableOpacity key={entry.id} style={styles.noteOption}>
+                  <View style={styles.noteOptionContent}>
+                    <Text style={styles.noteTitle}>{entry.summary?.split('.')[0] || 'Untitled'}</Text>
+                    <Text style={styles.notePreview} numberOfLines={2}>
+                      {entry.transcript || entry.summary || 'No content'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </Animated.View>
         )}
         
         <Animated.View style={[styles.inputContainer, { paddingBottom: insets.bottom + 16, transform: [{ translateY: inputAnim }] }]}>
@@ -313,7 +436,7 @@ export default function AskAuraScreen() {
                 <TextInput
                   ref={inputRef}
                   style={styles.searchInput}
-                  placeholder={query ? "" : "Ask me anything about your thoughts..."}
+                  placeholder={mode === 'ask' ? "Ask a question" : "Type your content..."}
                   placeholderTextColor={colors.textSecondary}
                   value={query}
                   onChangeText={setQuery}
@@ -425,11 +548,29 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 16,
   },
-  title: {
-    fontSize: 34,
-    fontWeight: '800' as const,
+  modeToggle: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 20,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  modeButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+  },
+  modeButtonActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  modeButtonText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: colors.textSecondary,
+  },
+  modeButtonTextActive: {
     color: colors.text,
-    letterSpacing: 0.5,
   },
   closeButton: {
     padding: 8,
@@ -443,10 +584,18 @@ const createStyles = (colors: any) => StyleSheet.create({
   logoWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 24,
   },
   logoImage: {
     width: 200,
     height: 80,
+  },
+  infoText: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   messagesWrapper: {
     flex: 1,
@@ -494,6 +643,86 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   loader: {
     marginVertical: 8,
+  },
+  createOptionsContainer: {
+    flex: 1,
+  },
+  createScroll: {
+    flex: 1,
+  },
+  createContent: {
+    paddingHorizontal: 24,
+    paddingTop: 8,
+  },
+  createTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: colors.text,
+    marginBottom: 20,
+  },
+  createSubtitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: colors.text,
+    marginTop: 24,
+    marginBottom: 20,
+  },
+  optionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  createOption: {
+    width: '47%',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    gap: 8,
+  },
+  createOptionText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: colors.text,
+  },
+  createOptionCustom: {
+    width: '47%',
+    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 0, 0.3)',
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  createOptionCustomText: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: AuraColors.accentOrange,
+  },
+  noteOption: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+  },
+  noteOptionContent: {
+    gap: 8,
+  },
+  noteTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: colors.text,
+  },
+  notePreview: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: colors.textSecondary,
+    lineHeight: 20,
   },
   inputContainer: {
     paddingTop: 16,

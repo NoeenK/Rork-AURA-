@@ -74,6 +74,10 @@ function RootLayoutNav() {
       <Stack.Screen name="recording" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="settings" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="calendar" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="goals" options={{ headerShown: false }} />
+      <Stack.Screen name="insights" options={{ headerShown: false }} />
+      <Stack.Screen name="analytics" options={{ headerShown: false }} />
+      <Stack.Screen name="actions" options={{ headerShown: false }} />
       <Stack.Screen name="+not-found" />
     </Stack>
   );
