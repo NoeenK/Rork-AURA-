@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView, PanResponder } from 'react-native';
 import * as Font from 'expo-font';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Mic, Calendar, Settings, Brain, TrendingUp, Target, Zap, X, BookOpen, Sparkles, Plus } from 'lucide-react-native';
+import { Mic, Calendar, Settings, Brain, TrendingUp, Target, Zap, X, BookOpen, Sparkles } from 'lucide-react-native';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -275,7 +275,13 @@ export default function MainScreen() {
                   {
                     translateX: leftButtonAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, -90],
+                      outputRange: [0, -110],
+                    }),
+                  },
+                  {
+                    translateY: leftButtonAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -110],
                     }),
                   },
                   {
@@ -293,16 +299,16 @@ export default function MainScreen() {
               onPress={() => handleNavigation('/journal')}
               activeOpacity={0.8}
             >
-              <View style={styles.orangeButtonWrapper}>
-                <LinearGradient
-                  colors={['#FF6B3D', '#FF8A3D']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.fanButtonInner}
-                >
-                  <BookOpen color={AuraColors.white} size={22} strokeWidth={2.5} />
-                </LinearGradient>
-              </View>
+              <LinearGradient
+                colors={['#FF8A00', '#FF6E40']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.fanButtonInner}
+              >
+                <View style={styles.fanButtonGlow} />
+                <BookOpen color={AuraColors.white} size={24} />
+              </LinearGradient>
+              <Text style={styles.fanButtonLabel}>Journal</Text>
             </TouchableOpacity>
           </Animated.View>
 
@@ -316,7 +322,7 @@ export default function MainScreen() {
                   {
                     translateY: centerButtonAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, -100],
+                      outputRange: [0, -160],
                     }),
                   },
                   {
@@ -334,16 +340,16 @@ export default function MainScreen() {
               onPress={() => handleNavigation('/recording')}
               activeOpacity={0.8}
             >
-              <View style={styles.centerButtonWrapper}>
-                <LinearGradient
-                  colors={['#FFFFFF', '#F5F5F5']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.centerButtonInner}
-                >
-                  <Plus color="#FF6B3D" size={28} strokeWidth={3} />
-                </LinearGradient>
-              </View>
+              <LinearGradient
+                colors={['#FF8A00', '#FF6E40']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.fanButtonInner}
+              >
+                <View style={styles.fanButtonGlow} />
+                <Mic color={AuraColors.white} size={24} />
+              </LinearGradient>
+              <Text style={styles.fanButtonLabel}>Record</Text>
             </TouchableOpacity>
           </Animated.View>
 
@@ -357,7 +363,13 @@ export default function MainScreen() {
                   {
                     translateX: rightButtonAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, 90],
+                      outputRange: [0, 110],
+                    }),
+                  },
+                  {
+                    translateY: rightButtonAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -110],
                     }),
                   },
                   {
@@ -375,16 +387,16 @@ export default function MainScreen() {
               onPress={() => handleNavigation('/ask-aura')}
               activeOpacity={0.8}
             >
-              <View style={styles.orangeButtonWrapper}>
-                <LinearGradient
-                  colors={['#FF6B3D', '#FF8A3D']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.fanButtonInner}
-                >
-                  <Sparkles color={AuraColors.white} size={22} strokeWidth={2.5} />
-                </LinearGradient>
-              </View>
+              <LinearGradient
+                colors={['#FF8A00', '#FF6E40']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.fanButtonInner}
+              >
+                <View style={styles.fanButtonGlow} />
+                <Sparkles color={AuraColors.white} size={24} />
+              </LinearGradient>
+              <Text style={styles.fanButtonLabel}>Ask Aura</Text>
             </TouchableOpacity>
           </Animated.View>
 
@@ -550,27 +562,33 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+    shadowColor: AuraColors.accentOrange,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.8,
+    shadowRadius: 24,
+    elevation: 12,
   },
-  orangeButtonWrapper: {
-    shadowColor: '#FF6B3D',
+  fanButtonGlow: {
+    position: 'absolute',
+    top: -8,
+    left: -8,
+    right: -8,
+    bottom: -8,
+    borderRadius: 38,
+    backgroundColor: AuraColors.accentOrange,
+    opacity: 0.3,
+    shadowColor: AuraColors.accentOrange,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 20,
-    elevation: 12,
   },
-  centerButtonWrapper: {
-    shadowColor: '#FFFFFF',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 30,
-    elevation: 16,
-  },
-  centerButtonInner: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
+  fanButtonLabel: {
+    marginTop: 8,
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: colors.text,
+    textAlign: 'center',
   },
   leftGlow: {
     position: 'absolute',
