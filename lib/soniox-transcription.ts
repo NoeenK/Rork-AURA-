@@ -188,11 +188,39 @@ export class SonioxRealtimeTranscription {
 
     try {
       console.log('[Soniox] Streaming audio file:', uri);
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      const arrayBuffer = await blob.arrayBuffer();
+      
+      let arrayBuffer: ArrayBuffer;
+      
+      if (Platform.OS === 'web') {
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        arrayBuffer = await blob.arrayBuffer();
+      } else {
+        // For React Native mobile, use FileReader or XMLHttpRequest
+        const response = await fetch(uri);
+        const reader = new FileReader();
+        const blob = await response.blob();
+        
+        arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+          reader.onloadend = () => {
+            if (reader.result instanceof ArrayBuffer) {
+              resolve(reader.result);
+            } else {
+              reject(new Error('Failed to read audio file'));
+            }
+          };
+          reader.onerror = reject;
+          reader.readAsArrayBuffer(blob);
+        });
+      }
       
       console.log('[Soniox] Audio file size:', arrayBuffer.byteLength, 'bytes');
+      
+      if (arrayBuffer.byteLength === 0) {
+        console.error('[Soniox] Audio file is empty');
+        this.callbacks?.onError(new Error('Audio file is empty'));
+        return;
+      }
       
       // Stream in chunks to simulate real-time
       const chunkSize = 3840; // Recommended by Soniox
@@ -292,9 +320,29 @@ export async function transcribeAudioFileWithSpeakers(uri: string): Promise<{ tr
         console.log('[Soniox] Config sent, streaming audio file...');
 
         try {
-          const response = await fetch(uri);
-          const blob = await response.blob();
-          const arrayBuffer = await blob.arrayBuffer();
+          let arrayBuffer: ArrayBuffer;
+          
+          if (Platform.OS === 'web') {
+            const response = await fetch(uri);
+            const blob = await response.blob();
+            arrayBuffer = await blob.arrayBuffer();
+          } else {
+            const response = await fetch(uri);
+            const reader = new FileReader();
+            const blob = await response.blob();
+            
+            arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+              reader.onloadend = () => {
+                if (reader.result instanceof ArrayBuffer) {
+                  resolve(reader.result);
+                } else {
+                  reject(new Error('Failed to read audio file'));
+                }
+              };
+              reader.onerror = reject;
+              reader.readAsArrayBuffer(blob);
+            });
+          }
           
           console.log('[Soniox] Audio file size:', arrayBuffer.byteLength);
           
@@ -453,9 +501,29 @@ export async function transcribeAudioFile(uri: string): Promise<string> {
         console.log('[Soniox] Config sent, streaming audio file...');
 
         try {
-          const response = await fetch(uri);
-          const blob = await response.blob();
-          const arrayBuffer = await blob.arrayBuffer();
+          let arrayBuffer: ArrayBuffer;
+          
+          if (Platform.OS === 'web') {
+            const response = await fetch(uri);
+            const blob = await response.blob();
+            arrayBuffer = await blob.arrayBuffer();
+          } else {
+            const response = await fetch(uri);
+            const reader = new FileReader();
+            const blob = await response.blob();
+            
+            arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+              reader.onloadend = () => {
+                if (reader.result instanceof ArrayBuffer) {
+                  resolve(reader.result);
+                } else {
+                  reject(new Error('Failed to read audio file'));
+                }
+              };
+              reader.onerror = reject;
+              reader.readAsArrayBuffer(blob);
+            });
+          }
           
           console.log('[Soniox] Audio file size:', arrayBuffer.byteLength);
           
