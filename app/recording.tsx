@@ -25,6 +25,7 @@ export default function RecordingScreen() {
   const [accumulatedTranscript, setAccumulatedTranscript] = useState<string>('');
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const [isPaused, setIsPaused] = useState<boolean>(false);
+  const [liveTranscriptStatus, setLiveTranscriptStatus] = useState<string>('Initializing...');
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const heartbeatScale = useRef(new Animated.Value(1)).current;
@@ -203,6 +204,7 @@ export default function RecordingScreen() {
       setRecordingState('recording');
       setAccumulatedTranscript('');
       setRecordingDuration(0);
+      setLiveTranscriptStatus('Connecting to transcription service...');
       console.log('Recording started');
 
       startLiveTranscription(newRecording);
@@ -213,57 +215,39 @@ export default function RecordingScreen() {
   };
 
   const startLiveTranscription = async (rec: Audio.Recording) => {
-    
     try {
       const soniox = new SonioxRealtimeTranscription();
       sonioxClient.current = soniox;
       
       await soniox.connect({
         onTranscript: (text: string, isFinal: boolean, tokens?: TranscriptionToken[]) => {
-          console.log('Soniox transcript:', text, 'isFinal:', isFinal);
+          console.log('Soniox transcript received:', text, 'isFinal:', isFinal, 'tokens:', tokens?.length);
           
           if (tokens && tokens.length > 0) {
-            setTranscriptionTokens(tokens);
+            console.log('Setting transcription tokens:', tokens);
+            setTranscriptionTokens([...tokens]);
+            setLiveTranscriptStatus('');
           }
           
-          if (isFinal) {
+          if (isFinal && text) {
             setAccumulatedTranscript(text);
+            console.log('Accumulated transcript updated:', text.slice(0, 100));
           }
         },
         onError: (error: Error) => {
           console.error('Soniox error:', error);
+          setLiveTranscriptStatus('Connection error. Transcription will occur after recording.');
         },
       });
       
-      console.log('Soniox WebSocket connected, starting audio stream...');
+      console.log('Soniox WebSocket connected');
+      setLiveTranscriptStatus('Listening for audio...');
       
-      audioStreamInterval.current = setInterval(async () => {
-        if (!recordingRef.current) {
-          if (audioStreamInterval.current) {
-            clearInterval(audioStreamInterval.current);
-          }
-          return;
+      setTimeout(() => {
+        if (recordingRef.current && transcriptionTokens.length === 0) {
+          setLiveTranscriptStatus('Recording audio. Transcription will be available after you finish.');
         }
-        
-        try {
-          const status = await recordingRef.current.getStatusAsync();
-          if (!status.isRecording) {
-            return;
-          }
-          
-          const uri = recordingRef.current.getURI();
-          if (!uri) return;
-          
-          const response = await fetch(uri);
-          const blob = await response.blob();
-          const arrayBuffer = await blob.arrayBuffer();
-          
-          const uint8Array = new Uint8Array(arrayBuffer);
-          sonioxClient.current?.sendAudio(uint8Array);
-        } catch (error) {
-          console.error('Error streaming audio to Soniox:', error);
-        }
-      }, 500) as any;
+      }, 3000);
       
     } catch (error) {
       console.error('Failed to start Soniox transcription:', error);
@@ -307,7 +291,7 @@ export default function RecordingScreen() {
 
       if (uri) {
         const finalTranscript = accumulatedTranscript || null;
-        transcribeAndSaveAudio(uri, finalTranscript);
+        await transcribeAndSaveAudio(uri, finalTranscript);
       }
     } catch (error) {
       console.error('Failed to stop recording:', error);
@@ -406,11 +390,7 @@ export default function RecordingScreen() {
           <Text style={styles.title}>Recording</Text>
         </View>
         
-        <ScrollView 
-          style={styles.scrollContent}
-          contentContainerStyle={styles.scrollContentContainer}
-          showsVerticalScrollIndicator={false}
-        >
+        <View style={styles.scrollContent}>
           <View style={styles.recordingSection}>
             <View style={styles.heartbeatContainer}>
               <Animated.View
@@ -443,12 +423,8 @@ export default function RecordingScreen() {
             {recordingState === 'paused' && (
               <Text style={styles.pausedLabel}>PAUSED</Text>
             )}
-
-
           </View>
-        </ScrollView>
 
-        {transcriptionTokens.length > 0 && (
           <View style={styles.glassTranscriptBox}>
             <LinearGradient
               colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
@@ -456,74 +432,90 @@ export default function RecordingScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.glassGradient}
             />
+            <LinearGradient
+              colors={['rgba(255, 165, 0, 0.15)', 'rgba(255, 107, 53, 0.1)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.orangeGradientOverlay}
+            />
             <ScrollView 
               style={styles.glassScrollView}
+              contentContainerStyle={styles.glassScrollContent}
               showsVerticalScrollIndicator={false}
             >
-              {(() => {
-                type Segment = { speaker: string; language: string; text: string };
-                const tokensBySegment: Segment[] = [];
-                let currentSegment: Segment | null = null;
-                
-                for (const token of transcriptionTokens) {
-                  const speaker = token.speaker || 'Speaker 1';
-                  const language = token.language || 'en';
+              {transcriptionTokens.length === 0 ? (
+                <View style={styles.placeholderContainer}>
+                  <Text style={styles.transcriptPlaceholder}>{liveTranscriptStatus}</Text>
+                  <Text style={styles.transcriptSubtext}>Speak clearly into your microphone</Text>
+                </View>
+              ) : (
+                (() => {
+                  type Segment = { speaker: string; language: string; text: string };
+                  const tokensBySegment: Segment[] = [];
+                  let currentSegment: Segment | null = null;
                   
-                  if (!currentSegment || currentSegment.speaker !== speaker || currentSegment.language !== language) {
-                    if (currentSegment && currentSegment.text.trim()) {
-                      tokensBySegment.push(currentSegment);
+                  for (const token of transcriptionTokens) {
+                    const speaker = token.speaker || 'Speaker 1';
+                    const language = token.language || 'en';
+                    
+                    if (!currentSegment || currentSegment.speaker !== speaker || currentSegment.language !== language) {
+                      if (currentSegment && currentSegment.text.trim()) {
+                        tokensBySegment.push(currentSegment);
+                      }
+                      currentSegment = { speaker, language, text: token.text };
+                    } else {
+                      currentSegment.text += token.text;
                     }
-                    currentSegment = { speaker, language, text: token.text };
-                  } else {
-                    currentSegment.text += token.text;
                   }
-                }
-                
-                if (currentSegment && currentSegment.text.trim()) {
-                  tokensBySegment.push(currentSegment);
-                }
-                
-                const speakerColors: Record<string, string> = {
-                  'Speaker 1': '#4CAF50',
-                  'Speaker 2': '#2196F3',
-                  'Speaker 3': '#FF5252',
-                  'Speaker 4': '#FF9800',
-                };
-                
-                const getLanguageDisplay = (lang: string): string => {
-                  const langMap: Record<string, string> = {
-                    'en': 'English',
-                    'es': 'Spanish',
-                    'fr': 'French',
-                    'de': 'German',
-                    'it': 'Italian',
-                    'pt': 'Portuguese',
-                    'ko': 'Korean',
-                    'ja': 'Japanese',
-                    'zh': 'Chinese',
+                  
+                  if (currentSegment && currentSegment.text.trim()) {
+                    tokensBySegment.push(currentSegment);
+                  }
+                  
+                  const speakerColors: Record<string, string> = {
+                    'Speaker 1': '#4CAF50',
+                    'Speaker 2': '#2196F3',
+                    'Speaker 3': '#FF5252',
+                    'Speaker 4': '#FF9800',
                   };
-                  return langMap[lang] || lang.toUpperCase();
-                };
-                
-                return tokensBySegment.map((segment, idx) => (
-                  <View key={idx} style={styles.transcriptSegment}>
-                    <View style={styles.segmentHeader}>
-                      <Text style={[styles.speakerLabel, { color: speakerColors[segment.speaker] || '#4CAF50' }]}>
-                        {segment.speaker.toUpperCase()}
-                      </Text>
-                      <View style={styles.languageBadge}>
-                        <Text style={styles.languageText}>
-                          {getLanguageDisplay(segment.language)}
+                  
+                  const getLanguageDisplay = (lang: string): string => {
+                    const langMap: Record<string, string> = {
+                      'en': 'English',
+                      'es': 'Spanish',
+                      'fr': 'French',
+                      'de': 'German',
+                      'it': 'Italian',
+                      'pt': 'Portuguese',
+                      'ko': 'Korean',
+                      'ja': 'Japanese',
+                      'zh': 'Chinese',
+                    };
+                    return langMap[lang] || lang.toUpperCase();
+                  };
+                  
+                  return tokensBySegment.map((segment, idx) => (
+                    <View key={idx} style={styles.transcriptSegment}>
+                      <View style={styles.segmentHeader}>
+                        <Text style={[styles.speakerLabel, { color: speakerColors[segment.speaker] || '#4CAF50' }]}>
+                          {segment.speaker.toUpperCase()}
                         </Text>
+                        <View style={styles.languageBadge}>
+                          <Text style={styles.languageText}>
+                            {getLanguageDisplay(segment.language)}
+                          </Text>
+                        </View>
                       </View>
+                      <Text style={styles.segmentText}>{segment.text.trim()}</Text>
                     </View>
-                    <Text style={styles.segmentText}>{segment.text.trim()}</Text>
-                  </View>
-                ));
-              })()}
+                  ));
+                })()
+              )}
             </ScrollView>
           </View>
-        )}
+        </View>
+
+
 
         <View style={[styles.buttonContainer, { paddingBottom: insets.bottom + 40 }]}>
           <View style={styles.recordingControls}>
@@ -586,10 +578,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     letterSpacing: 2,
   },
   recordingSection: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingVertical: 40,
   },
   waveformContainer: {
     flexDirection: 'row',
@@ -647,9 +638,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   scrollContent: {
     flex: 1,
-  },
-  scrollContentContainer: {
-    flexGrow: 1,
+    paddingHorizontal: 24,
   },
   buttonContainer: {
     alignItems: 'center',
@@ -756,11 +745,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     opacity: 0.7,
   },
   glassTranscriptBox: {
-    position: 'absolute' as const,
-    bottom: 160,
-    left: 24,
-    right: 24,
-    maxHeight: 280,
+    flex: 1,
+    marginTop: 24,
+    minHeight: 200,
     borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 1,
@@ -775,7 +762,33 @@ const createStyles = (colors: any) => StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   glassScrollView: {
+    flex: 1,
+  },
+  glassScrollContent: {
     padding: 20,
+  },
+  orangeGradientOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.5,
+  },
+  placeholderContainer: {
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 12,
+  },
+  transcriptPlaceholder: {
+    fontSize: 16,
+    color: colors.text,
+    fontWeight: '600' as const,
+    textAlign: 'center' as const,
+    opacity: 0.9,
+  },
+  transcriptSubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontStyle: 'italic' as const,
+    textAlign: 'center' as const,
+    opacity: 0.6,
   },
   transcriptSegment: {
     marginBottom: 16,
