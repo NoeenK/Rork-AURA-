@@ -36,6 +36,9 @@ export class SonioxRealtimeTranscription {
   private sourceNode: any = null;
   private processorNode: any = null;
   private mediaStream: any = null;
+  private tokenBuffer: Token[] = [];
+  private bufferTimeout: any = null;
+  private lastEmitTime = 0;
 
   async connect(callbacks: TranscriptionCallback): Promise<void> {
     this.callbacks = callbacks;
@@ -95,7 +98,6 @@ export class SonioxRealtimeTranscription {
           }
 
           if (data.tokens && data.tokens.length > 0) {
-            const currentFinalTokens: Token[] = [];
             const currentNonFinalTokens: Token[] = [];
 
             data.tokens.forEach((t: any) => {
@@ -108,18 +110,46 @@ export class SonioxRealtimeTranscription {
               };
 
               if (token.isFinal) {
-                this.finalTokens.push(token);
-                currentFinalTokens.push(token);
+                this.tokenBuffer.push(token);
               } else {
                 currentNonFinalTokens.push(token);
               }
             });
 
-            this.callbacks?.onFinalTokens([...this.finalTokens], currentNonFinalTokens);
+            // Emit buffered tokens periodically to reduce fragmentation
+            const now = Date.now();
+            if (this.tokenBuffer.length > 0 && (now - this.lastEmitTime > 500 || this.tokenBuffer.length > 10)) {
+              this.finalTokens.push(...this.tokenBuffer);
+              this.tokenBuffer = [];
+              this.lastEmitTime = now;
+              this.callbacks?.onFinalTokens([...this.finalTokens], currentNonFinalTokens);
+            } else if (currentNonFinalTokens.length > 0) {
+              // Still emit non-final tokens for real-time feedback
+              this.callbacks?.onFinalTokens([...this.finalTokens], currentNonFinalTokens);
+            }
+
+            // Set/reset timeout to flush remaining tokens
+            if (this.bufferTimeout) {
+              clearTimeout(this.bufferTimeout);
+            }
+            this.bufferTimeout = setTimeout(() => {
+              if (this.tokenBuffer.length > 0) {
+                this.finalTokens.push(...this.tokenBuffer);
+                this.tokenBuffer = [];
+                this.lastEmitTime = Date.now();
+                this.callbacks?.onFinalTokens([...this.finalTokens], []);
+              }
+            }, 500);
           }
 
           if (data.finished) {
             console.log('Transcription finished by server');
+            // Flush any remaining tokens
+            if (this.tokenBuffer.length > 0) {
+              this.finalTokens.push(...this.tokenBuffer);
+              this.tokenBuffer = [];
+              this.callbacks?.onFinalTokens([...this.finalTokens], []);
+            }
           }
         } catch (error) {
           console.error('Error parsing Soniox message:', error);
@@ -265,9 +295,21 @@ export class SonioxRealtimeTranscription {
   disconnect(): void {
     console.log('Disconnecting Soniox transcription...');
     
+    if (this.bufferTimeout) {
+      clearTimeout(this.bufferTimeout);
+      this.bufferTimeout = null;
+    }
+    
     if (this.keepaliveInterval) {
       clearInterval(this.keepaliveInterval);
       this.keepaliveInterval = null;
+    }
+    
+    // Flush remaining buffered tokens
+    if (this.tokenBuffer.length > 0) {
+      this.finalTokens.push(...this.tokenBuffer);
+      this.tokenBuffer = [];
+      this.callbacks?.onFinalTokens([...this.finalTokens], []);
     }
     
     this.cleanup();

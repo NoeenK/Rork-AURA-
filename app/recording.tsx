@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Square } from 'lucide-react-native';
+import { Square, Mic } from 'lucide-react-native';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,6 +10,7 @@ import * as Haptics from 'expo-haptics';
 import { useJournal } from '@/contexts/JournalContext';
 import { router } from 'expo-router';
 import { Audio } from 'expo-av';
+import { BlurView } from 'expo-blur';
 
 type RecordingState = 'recording' | 'paused';
 
@@ -23,6 +24,8 @@ export default function RecordingScreen() {
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [finalTokens, setFinalTokens] = useState<Token[]>([]);
   const [nonFinalTokens, setNonFinalTokens] = useState<Token[]>([]);
+  const transcriptBoxOpacity = useRef(new Animated.Value(1)).current;
+  const transcriptBoxScale = useRef(new Animated.Value(1)).current;
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const waveAnims = useRef(
@@ -85,6 +88,22 @@ export default function RecordingScreen() {
       anim.setValue(0.3);
     });
   }, [pulseAnim, waveAnims]);
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(transcriptBoxScale, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+      Animated.timing(transcriptBoxOpacity, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [transcriptBoxOpacity, transcriptBoxScale]);
 
   const startLiveTranscription = useCallback(async () => {
     
@@ -365,7 +384,26 @@ export default function RecordingScreen() {
   };
 
   const mergeTokenText = (tokenList: Token[]): string => {
-    return tokenList.map(t => t.text).join(' ').replace(/\s+/g, ' ').trim();
+    let result = '';
+    tokenList.forEach((token, idx) => {
+      const text = token.text;
+      if (idx === 0) {
+        result = text;
+      } else {
+        const prevToken = tokenList[idx - 1];
+        const prevText = prevToken?.text || '';
+        
+        // Add space intelligently
+        if (prevText.endsWith(' ') || text.startsWith(' ')) {
+          result += text;
+        } else if (/[.!?,;:]$/.test(prevText) || /^[.!?,;:]/.test(text)) {
+          result += text;
+        } else {
+          result += ' ' + text.trim();
+        }
+      }
+    });
+    return result.replace(/\s+/g, ' ').trim();
   };
 
   const renderTokenGroups = () => {
@@ -497,16 +535,45 @@ export default function RecordingScreen() {
               <Text style={styles.pausedLabel}>PAUSED</Text>
             )}
 
-            {(finalTokens.length > 0 || nonFinalTokens.length > 0) && (
-              <View style={styles.transcriptContainer}>
-                <Text style={styles.transcriptLabel}>
-                  LIVE TRANSCRIPTION
-                </Text>
-                <ScrollView style={styles.transcriptScroll} showsVerticalScrollIndicator={false}>
-                  {renderTokenGroups()}
-                </ScrollView>
-              </View>
-            )}
+            <Animated.View
+              style={[
+                styles.transcriptContainerWrapper,
+                {
+                  opacity: transcriptBoxOpacity,
+                  transform: [{ scale: transcriptBoxScale }],
+                },
+              ]}
+            >
+              {Platform.OS === 'web' ? (
+                <View style={styles.transcriptContainer}>
+                  <View style={styles.transcriptHeader}>
+                    <Mic size={14} color="#FF6B35" />
+                    <Text style={styles.transcriptLabel}>LIVE TRANSCRIPTION</Text>
+                  </View>
+                  <ScrollView style={styles.transcriptScroll} showsVerticalScrollIndicator={false}>
+                    {finalTokens.length === 0 && nonFinalTokens.length === 0 ? (
+                      <Text style={styles.placeholderText}>Waiting for speech...</Text>
+                    ) : (
+                      renderTokenGroups()
+                    )}
+                  </ScrollView>
+                </View>
+              ) : (
+                <BlurView intensity={15} style={styles.transcriptContainer}>
+                  <View style={styles.transcriptHeader}>
+                    <Mic size={14} color="#FF6B35" />
+                    <Text style={styles.transcriptLabel}>LIVE TRANSCRIPTION</Text>
+                  </View>
+                  <ScrollView style={styles.transcriptScroll} showsVerticalScrollIndicator={false}>
+                    {finalTokens.length === 0 && nonFinalTokens.length === 0 ? (
+                      <Text style={styles.placeholderText}>Waiting for speech...</Text>
+                    ) : (
+                      renderTokenGroups()
+                    )}
+                  </ScrollView>
+                </BlurView>
+              )}
+            </Animated.View>
           </View>
         </ScrollView>
 
@@ -595,90 +662,111 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.text,
     marginBottom: 24,
   },
+  transcriptContainerWrapper: {
+    width: '100%',
+    marginTop: 20,
+  },
   transcriptContainer: {
     width: '100%',
     maxHeight: 400,
-    backgroundColor: 'rgba(255, 255, 255, 0.97)',
-    borderRadius: 20,
-    padding: 18,
-    marginTop: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    overflow: 'hidden' as const,
+  },
+  transcriptHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
   },
   transcriptLabel: {
     fontSize: 11,
-    fontWeight: '700' as const,
-    color: '#999',
-    marginBottom: 12,
+    fontWeight: '800' as const,
+    color: 'rgba(255, 255, 255, 0.9)',
     textTransform: 'uppercase' as const,
-    letterSpacing: 1,
+    letterSpacing: 1.5,
+  },
+  placeholderText: {
+    fontSize: 14,
+    fontWeight: '400' as const,
+    color: 'rgba(255, 255, 255, 0.4)',
+    fontStyle: 'italic' as const,
+    textAlign: 'center' as const,
+    marginVertical: 24,
   },
   transcriptScroll: {
-    maxHeight: 350,
+    maxHeight: 340,
   },
   transcriptGroup: {
-    marginBottom: 16,
+    marginBottom: 14,
   },
   speakerBadge: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 14,
-    marginBottom: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
   },
   speakerBadgeText: {
-    fontSize: 11,
-    fontWeight: '700' as const,
+    fontSize: 10,
+    fontWeight: '800' as const,
     color: '#FFF',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   transcriptBlock: {
-    gap: 8,
+    gap: 6,
   },
   transcriptLine: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 8,
+    gap: 6,
   },
   languageBadge: {
-    backgroundColor: '#F0F0F0',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    marginTop: 2,
+    backgroundColor: 'rgba(255, 107, 53, 0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 1,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 53, 0.3)',
   },
   languageBadgeText: {
-    fontSize: 10,
-    fontWeight: '600' as const,
-    color: '#666',
-    letterSpacing: 0.3,
+    fontSize: 9,
+    fontWeight: '700' as const,
+    color: 'rgba(255, 255, 255, 0.85)',
+    letterSpacing: 0.5,
   },
   originalText: {
     flex: 1,
     fontSize: 15,
-    lineHeight: 22,
-    color: '#000',
-    fontWeight: '400' as const,
-    letterSpacing: 0.2,
+    lineHeight: 21,
+    color: 'rgba(255, 255, 255, 0.95)',
+    fontWeight: '500' as const,
+    letterSpacing: 0.3,
   },
   translatedText: {
     flex: 1,
     fontSize: 14,
     lineHeight: 20,
-    color: '#4A90E2',
-    fontWeight: '400' as const,
-    letterSpacing: 0.2,
+    color: 'rgba(255, 165, 89, 0.95)',
+    fontWeight: '500' as const,
+    letterSpacing: 0.3,
   },
   nonFinalText: {
-    opacity: 0.5,
+    opacity: 0.45,
     fontStyle: 'italic' as const,
   },
   scrollContent: {
