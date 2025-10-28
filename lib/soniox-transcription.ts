@@ -91,7 +91,6 @@ export class SonioxRealtimeTranscription {
             
             if (nonFinalTokens.length > 0) {
               const speaker = nonFinalTokens[0]?.speaker;
-              const nonFinalText = nonFinalTokens.map((t: any) => t.text).join(' ');
               const fullText = [...this.finalTokens, ...nonFinalTokens.map((t: any) => t.text)].join(' ');
               this.callbacks?.onTranscript(fullText, false, speaker);
             }
@@ -484,8 +483,8 @@ export async function extractCalendarEvents(transcript: string): Promise<Calenda
     console.log('Extracted events:', events);
     
     return Array.isArray(events) ? events : [];
-  } catch (error) {
-    console.error('Calendar event extraction error:', error);
+  } catch {
+    console.warn('Calendar event extraction failed, skipping');
     return [];
   }
 }
@@ -531,8 +530,8 @@ export async function generateAuraSummary(transcript: string, speakers?: Speaker
       overview: summary.overview || 'No overview available',
       tasks: Array.isArray(summary.tasks) ? summary.tasks : [],
     };
-  } catch (error) {
-    console.error('AURA summary generation error:', error);
+  } catch {
+    console.warn('AURA summary generation failed, using fallback');
     return {
       overview: 'Recording from ' + new Date().toLocaleDateString(),
       tasks: [],
@@ -566,8 +565,8 @@ export async function generateSummary(transcript: string, speakers?: SpeakerSegm
     console.log('Summary generated successfully');
     
     return response || 'Summary not available';
-  } catch (error) {
-    console.error('Summary generation error:', error);
+  } catch {
+    console.warn('Summary generation failed, using fallback');
     return 'Recording from ' + new Date().toLocaleDateString();
   }
 }
