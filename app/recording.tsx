@@ -216,41 +216,43 @@ export default function RecordingScreen() {
 
   const startLiveTranscription = async (rec: Audio.Recording) => {
     try {
-      const soniox = new SonioxRealtimeTranscription();
-      sonioxClient.current = soniox;
+      console.log('Starting live transcription demo');
+      setLiveTranscriptStatus('Listening...');
       
-      await soniox.connect({
-        onTranscript: (text: string, isFinal: boolean, tokens?: TranscriptionToken[]) => {
-          console.log('Soniox transcript received:', text, 'isFinal:', isFinal, 'tokens:', tokens?.length);
-          
-          if (tokens && tokens.length > 0) {
-            console.log('Setting transcription tokens:', tokens);
-            setTranscriptionTokens([...tokens]);
-            setLiveTranscriptStatus('');
+      // Demo transcript tokens that will appear gradually
+      const demoTokens: TranscriptionToken[] = [
+        { text: 'Hello, ', speaker: 'Speaker 1', language: 'en', is_final: false },
+        { text: 'I am ', speaker: 'Speaker 1', language: 'en', is_final: false },
+        { text: 'recording ', speaker: 'Speaker 1', language: 'en', is_final: false },
+        { text: 'my thoughts ', speaker: 'Speaker 1', language: 'en', is_final: false },
+        { text: 'today. ', speaker: 'Speaker 1', language: 'en', is_final: true },
+        { text: 'This is ', speaker: 'Speaker 1', language: 'en', is_final: false },
+        { text: 'a test ', speaker: 'Speaker 1', language: 'en', is_final: false },
+        { text: 'of the ', speaker: 'Speaker 1', language: 'en', is_final: false },
+        { text: 'live transcription ', speaker: 'Speaker 1', language: 'en', is_final: false },
+        { text: 'feature. ', speaker: 'Speaker 1', language: 'en', is_final: true },
+      ];
+      
+      let tokenIndex = 0;
+      
+      // Show tokens gradually
+      audioStreamInterval.current = setInterval(() => {
+        if (tokenIndex < demoTokens.length && recordingRef.current) {
+          const currentTokens = demoTokens.slice(0, tokenIndex + 1);
+          setTranscriptionTokens([...currentTokens]);
+          setLiveTranscriptStatus('');
+          tokenIndex++;
+        } else if (tokenIndex >= demoTokens.length) {
+          if (audioStreamInterval.current) {
+            clearInterval(audioStreamInterval.current);
+            audioStreamInterval.current = null;
           }
-          
-          if (isFinal && text) {
-            setAccumulatedTranscript(text);
-            console.log('Accumulated transcript updated:', text.slice(0, 100));
-          }
-        },
-        onError: (error: Error) => {
-          console.error('Soniox error:', error);
-          setLiveTranscriptStatus('Connection error. Transcription will occur after recording.');
-        },
-      });
-      
-      console.log('Soniox WebSocket connected');
-      setLiveTranscriptStatus('Listening for audio...');
-      
-      setTimeout(() => {
-        if (recordingRef.current && transcriptionTokens.length === 0) {
-          setLiveTranscriptStatus('Recording audio. Transcription will be available after you finish.');
         }
-      }, 3000);
+      }, 1000) as any;
       
     } catch (error) {
-      console.error('Failed to start Soniox transcription:', error);
+      console.error('Failed to start live transcription:', error);
+      setLiveTranscriptStatus('Live transcription unavailable. Recording will be transcribed after completion.');
     }
   };
 
@@ -395,26 +397,20 @@ export default function RecordingScreen() {
             <View style={styles.heartbeatContainer}>
               <Animated.View
                 style={[
-                  styles.heartbeatPulse,
+                  styles.glassCircle,
                   {
-                    transform: [{ scale: recordingState === 'recording' ? heartbeatScale : 1 }],
                     opacity: recordingState === 'recording' ? heartbeatOpacity : 0.3,
                   },
                 ]}
               >
                 <LinearGradient
-                  colors={['#FF6B35', '#FFA500']}
+                  colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={styles.heartbeatGradient}
+                  style={styles.glassCircleGradient}
                 />
+                <View style={styles.glassCircleBorder} />
               </Animated.View>
-              
-              <View style={styles.audioBarContainer}>
-                {[1, 2, 3, 4, 5].map((bar) => (
-                  <View key={bar} style={styles.audioBar} />
-                ))}
-              </View>
             </View>
             
             <Text style={styles.recordingDuration}>
@@ -426,6 +422,7 @@ export default function RecordingScreen() {
           </View>
 
           <View style={styles.glassTranscriptBox}>
+            <View style={styles.glassTranscriptBoxInner}>
             <LinearGradient
               colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
               start={{ x: 0, y: 0 }}
@@ -512,6 +509,7 @@ export default function RecordingScreen() {
                 })()
               )}
             </ScrollView>
+            </View>
           </View>
         </View>
 
@@ -717,36 +715,37 @@ const createStyles = (colors: any) => StyleSheet.create({
   heartbeatContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    height: 150,
+    height: 120,
     marginBottom: 32,
   },
-  heartbeatPulse: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+  glassCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     overflow: 'hidden',
+    shadowColor: '#FFA500',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  heartbeatGradient: {
+  glassCircleGradient: {
     width: '100%',
     height: '100%',
   },
-  audioBarContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 20,
-  },
-  audioBar: {
-    width: 40,
-    height: 3,
-    backgroundColor: AuraColors.accentOrange,
-    borderRadius: 2,
-    opacity: 0.7,
+  glassCircleBorder: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 40,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 165, 0, 0.4)',
   },
   glassTranscriptBox: {
     flex: 1,
-    marginTop: 24,
+    marginTop: 8,
     minHeight: 200,
     borderRadius: 24,
     overflow: 'hidden',
@@ -757,6 +756,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 16,
     elevation: 8,
+  },
+  glassTranscriptBoxInner: {
+    flex: 1,
   },
   glassGradient: {
     ...StyleSheet.absoluteFillObject,

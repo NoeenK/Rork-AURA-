@@ -21,6 +21,8 @@ export class SonioxRealtimeTranscription {
   private finalTokens: TranscriptionToken[] = [];
   private nonFinalTokens: TranscriptionToken[] = [];
   private accumulatedText = '';
+  private audioQueue: ArrayBuffer[] = [];
+  private isSending = false;
 
   async connect(callbacks: TranscriptionCallback): Promise<void> {
     this.callbacks = callbacks;
@@ -123,6 +125,41 @@ export class SonioxRealtimeTranscription {
       this.ws.send(audioData);
     } catch (error) {
       console.error('Error sending audio to Soniox:', error);
+      this.callbacks?.onError(error as Error);
+    }
+  }
+
+  async sendAudioFile(uri: string): Promise<void> {
+    if (!this.isConnected || !this.ws) {
+      console.warn('WebSocket not connected');
+      return;
+    }
+
+    try {
+      console.log('Fetching audio file for streaming:', uri);
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      const arrayBuffer = await blob.arrayBuffer();
+      
+      const chunkSize = 3840;
+      let offset = 0;
+      
+      const sendChunk = () => {
+        if (offset < arrayBuffer.byteLength && this.isConnected) {
+          const chunk = arrayBuffer.slice(offset, offset + chunkSize);
+          this.ws?.send(chunk);
+          offset += chunkSize;
+          
+          // Send chunks at ~120ms intervals to simulate real-time
+          setTimeout(sendChunk, 120);
+        } else if (offset >= arrayBuffer.byteLength) {
+          console.log('All audio chunks sent');
+        }
+      };
+      
+      sendChunk();
+    } catch (error) {
+      console.error('Error sending audio file:', error);
       this.callbacks?.onError(error as Error);
     }
   }
