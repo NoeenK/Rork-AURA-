@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Platform, Modal, Animated, PanResponder, ActivityIndicator, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, Play, Pause, RotateCcw, RotateCw, MoreVertical, Download, FileText, ChevronLeft, ChevronRight, Calendar, MapPin, User } from 'lucide-react-native';
+import { X, Play, Pause, RotateCcw, RotateCw, MoreVertical, Download, FileText, ChevronLeft, ChevronRight, Calendar, MapPin, User, Clock, Send, Mail, Link as LinkIcon } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useJournal } from '@/contexts/JournalContext';
 import { AuraColors } from '@/constants/colors';
@@ -35,6 +35,7 @@ export default function JournalScreen() {
   const [showNewEntryPopup, setShowNewEntryPopup] = useState(false);
   const [newEntryId, setNewEntryId] = useState<string | null>(null);
   const popupAnim = useRef(new Animated.Value(0)).current;
+  const [showShareMenu, setShowShareMenu] = useState<string | null>(null);
   
   const panResponder = useRef(
     PanResponder.create({
@@ -386,10 +387,43 @@ ${selectedFullEntry.transcript}`;
                     </View>
                     <Text style={styles.processingTitle}>Processing Recording...</Text>
                     <Text style={styles.processingSubtext}>Transcribing audio and generating summary</Text>
-                    <Text style={styles.entryDate}>{entry.date}</Text>
+                    <View style={styles.entryDateTimeRow}>
+                      <Calendar color={colors.textSecondary} size={14} />
+                      <Clock color={colors.textSecondary} size={14} />
+                      <Text style={styles.entryDate}>{entry.date}</Text>
+                    </View>
                   </View>
                 ) : (
                   <>
+                    <View style={styles.entryTopRow}>
+                      <View style={styles.entryDateTimeRow}>
+                        <Calendar color={colors.textSecondary} size={14} />
+                        <Clock color={colors.textSecondary} size={14} />
+                        <Text style={styles.entryDateTop}>
+                          {entry.date} || {entry.duration < 60 ? `${entry.duration}s` : `${Math.floor(entry.duration / 60)} min`}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          if (Platform.OS !== 'web') {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          }
+                          setShowShareMenu(entry.id);
+                        }}
+                        activeOpacity={0.7}
+                        style={styles.shareButton}
+                      >
+                        <LinearGradient
+                          colors={['rgba(255, 138, 0, 0.2)', 'rgba(255, 110, 64, 0.25)']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={styles.shareButtonGradient}
+                        >
+                          <Send color={AuraColors.accentOrange} size={14} strokeWidth={2.5} />
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    </View>
                     <View style={styles.entryHeader}>
                       <View style={styles.entryTitleRow}>
                         <Play color={AuraColors.accentOrange} size={20} fill={AuraColors.accentOrange} />
@@ -397,14 +431,10 @@ ${selectedFullEntry.transcript}`;
                           {entry.title}
                         </Text>
                       </View>
-                      <Text style={styles.entryDuration}>
-                        {Math.floor(entry.duration / 60)}:{(entry.duration % 60).toString().padStart(2, '0')}
-                      </Text>
                     </View>
                     <Text style={styles.entrySummary} numberOfLines={2}>
                       {entry.summary}
                     </Text>
-                    <Text style={styles.entryDate}>{entry.date}</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -871,6 +901,58 @@ ${selectedFullEntry.transcript}`;
           </TouchableOpacity>
         </Modal>
       )}
+      
+      {showShareMenu && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowShareMenu(null)}
+        >
+          <TouchableOpacity
+            style={styles.shareMenuOverlay}
+            activeOpacity={1}
+            onPress={() => setShowShareMenu(null)}
+          >
+            <View style={styles.shareMenuContainer}>
+              <Text style={styles.shareMenuTitle}>Share Entry</Text>
+              <TouchableOpacity
+                style={styles.shareMenuItem}
+                onPress={() => {
+                  if (Platform.OS !== 'web') {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                  console.log('Share via email');
+                  setShowShareMenu(null);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.shareIconWrapper}>
+                  <Mail color={AuraColors.accentOrange} size={20} />
+                </View>
+                <Text style={styles.shareMenuText}>Share via Email</Text>
+              </TouchableOpacity>
+              <View style={styles.shareMenuDivider} />
+              <TouchableOpacity
+                style={styles.shareMenuItem}
+                onPress={() => {
+                  if (Platform.OS !== 'web') {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                  console.log('Copy shareable link');
+                  setShowShareMenu(null);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.shareIconWrapper}>
+                  <LinkIcon color={AuraColors.accentOrange} size={20} />
+                </View>
+                <Text style={styles.shareMenuText}>Copy Shareable Link</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -1021,15 +1103,46 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontStyle: 'italic' as const,
   },
   entryDate: {
-    fontSize: 13,
+    fontSize: 12,
     color: colors.textSecondary,
     fontWeight: '500' as const,
   },
   entryDateTop: {
-    fontSize: 13,
+    fontSize: 12,
     color: colors.textSecondary,
-    fontWeight: '600' as const,
+    fontWeight: '500' as const,
+  },
+  entryTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 12,
+  },
+  entryDateTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  shareButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: AuraColors.accentOrange,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  shareButtonGradient: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 138, 0, 0.3)',
+    borderRadius: 16,
   },
   modalContainer: {
     flex: 1,
@@ -1707,5 +1820,55 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: '700' as const,
     color: AuraColors.white,
     letterSpacing: 0.5,
+  },
+  shareMenuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shareMenuContainer: {
+    backgroundColor: colors.card,
+    borderRadius: 20,
+    padding: 20,
+    minWidth: 280,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 138, 0, 0.2)',
+  },
+  shareMenuTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: colors.text,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  shareMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    padding: 16,
+  },
+  shareIconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 138, 0, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shareMenuText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: colors.text,
+  },
+  shareMenuDivider: {
+    height: 1,
+    backgroundColor: colors.background,
+    marginHorizontal: 8,
   },
 });
