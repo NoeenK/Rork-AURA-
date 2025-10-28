@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView, PanResponder } from 'react-native';
 import * as Font from 'expo-font';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Mic, Calendar, Settings, Brain, TrendingUp, Target, Zap, BookOpen, Sparkles, Plus } from 'lucide-react-native';
+import { Mic, Calendar, Settings, Brain, TrendingUp, Target, Zap, X, BookOpen, Sparkles } from 'lucide-react-native';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -83,28 +83,28 @@ export default function MainScreen() {
     Animated.parallel([
       Animated.spring(leftButtonAnim, {
         toValue,
-        tension: 60,
-        friction: 8,
+        tension: 50,
+        friction: 7,
         useNativeDriver: true,
       }),
       Animated.spring(centerButtonAnim, {
         toValue,
         delay: 50,
-        tension: 60,
-        friction: 8,
+        tension: 50,
+        friction: 7,
         useNativeDriver: true,
       }),
       Animated.spring(rightButtonAnim, {
         toValue,
         delay: 100,
-        tension: 60,
-        friction: 8,
+        tension: 50,
+        friction: 7,
         useNativeDriver: true,
       }),
       Animated.spring(mainButtonRotation, {
         toValue,
-        tension: 60,
-        friction: 8,
+        tension: 50,
+        friction: 7,
         useNativeDriver: true,
       }),
     ]).start();
@@ -264,156 +264,166 @@ export default function MainScreen() {
           <View style={styles.recordingSection} />
         </ScrollView>
 
-        <View style={[styles.buttonContainer, { paddingBottom: insets.bottom + 48 }]} testID="home-fab-cluster">
-          {menuExpanded && (
-            <View style={styles.expandedCluster}>
-              <Animated.View
-                style={[
-                  styles.clusterSmall,
-                  {
-                    opacity: leftButtonAnim,
-                    transform: [
-                      {
-                        translateX: leftButtonAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -90] }),
-                      },
-                      {
-                        scale: leftButtonAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }),
-                      },
-                    ],
-                  },
-                ]}
-              >
-                <TouchableOpacity
-                  style={styles.smallCircleTouchable}
-                  onPress={() => handleNavigation('/journal')}
-                  activeOpacity={0.85}
-                  testID="cluster-journal"
-                >
-                  <LinearGradient
-                    colors={['#FF8A00', '#FF6E40']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.smallCircle}
-                  >
-                    <View style={styles.glowHalo} />
-                    <BookOpen color={AuraColors.white} size={22} />
-                  </LinearGradient>
-                </TouchableOpacity>
-              </Animated.View>
-
-              <Animated.View
-                style={[
-                  styles.clusterCenterBig,
-                  {
-                    opacity: centerButtonAnim,
-                    transform: [
-                      {
-                        scale: centerButtonAnim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }),
-                      },
-                    ],
-                  },
-                ]}
-              >
-                <View style={styles.bigWhiteCircle}>
-                  <Plus color={AuraColors.accentOrange} size={28} />
-                </View>
-              </Animated.View>
-
-              <Animated.View
-                style={[
-                  styles.clusterSmall,
-                  {
-                    opacity: rightButtonAnim,
-                    transform: [
-                      {
-                        translateX: rightButtonAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 90] }),
-                      },
-                      {
-                        scale: rightButtonAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }),
-                      },
-                    ],
-                  },
-                ]}
-              >
-                <TouchableOpacity
-                  style={styles.smallCircleTouchable}
-                  onPress={() => handleNavigation('/ask-aura')}
-                  activeOpacity={0.85}
-                  testID="cluster-aura"
-                >
-                  <LinearGradient
-                    colors={['#FF8A00', '#FF6E40']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.smallCircle}
-                  >
-                    <View style={styles.glowHalo} />
-                    <Sparkles color={AuraColors.white} size={22} />
-                  </LinearGradient>
-                </TouchableOpacity>
-              </Animated.View>
-
-              <Animated.View
-                style={[
-                  styles.clusterMic,
-                  {
-                    opacity: centerButtonAnim,
-                    transform: [
-                      {
-                        translateY: centerButtonAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -84] }),
-                      },
-                      {
-                        scale: centerButtonAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }),
-                      },
-                    ],
-                  },
-                ]}
-              >
-                <TouchableOpacity
-                  style={styles.smallCircleTouchable}
-                  onPress={() => handleNavigation('/recording')}
-                  activeOpacity={0.85}
-                  testID="cluster-record"
-                >
-                  <LinearGradient
-                    colors={['#FF8A00', '#FF6E40']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.smallCircle}
-                  >
-                    <View style={styles.glowHalo} />
-                    <Mic color={AuraColors.white} size={22} />
-                  </LinearGradient>
-                </TouchableOpacity>
-              </Animated.View>
-            </View>
-          )}
-
-          {!menuExpanded && (
-            <Animated.View
-              style={{
+        <View style={[styles.buttonContainer, { paddingBottom: insets.bottom + 40 }]}>
+          <Animated.View
+            style={[
+              styles.fanButton,
+              styles.leftButton,
+              {
+                opacity: leftButtonAnim,
                 transform: [
                   {
-                    rotate: mainButtonRotation.interpolate({
+                    translateX: leftButtonAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: ['0deg', '45deg'],
+                      outputRange: [0, -110],
+                    }),
+                  },
+                  {
+                    translateY: leftButtonAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -110],
+                    }),
+                  },
+                  {
+                    scale: leftButtonAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 1],
                     }),
                   },
                 ],
-              }}
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.fanButtonTouchable}
+              onPress={() => handleNavigation('/journal')}
+              activeOpacity={0.8}
             >
-              <TouchableOpacity
-                style={styles.mainMicButton}
-                onPress={toggleMenu}
-                activeOpacity={0.8}
-                testID="home-record"
+              <LinearGradient
+                colors={['#FF8A00', '#FF6E40']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.fanButtonInner}
               >
+                <View style={styles.fanButtonGlow} />
+                <BookOpen color={AuraColors.white} size={24} />
+              </LinearGradient>
+              <Text style={styles.fanButtonLabel}>Journal</Text>
+            </TouchableOpacity>
+          </Animated.View>
+
+          <Animated.View
+            style={[
+              styles.fanButton,
+              styles.centerButton,
+              {
+                opacity: centerButtonAnim,
+                transform: [
+                  {
+                    translateY: centerButtonAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -160],
+                    }),
+                  },
+                  {
+                    scale: centerButtonAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.fanButtonTouchable}
+              onPress={() => handleNavigation('/recording')}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={['#FF8A00', '#FF6E40']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.fanButtonInner}
+              >
+                <View style={styles.fanButtonGlow} />
+                <Mic color={AuraColors.white} size={24} />
+              </LinearGradient>
+              <Text style={styles.fanButtonLabel}>Record</Text>
+            </TouchableOpacity>
+          </Animated.View>
+
+          <Animated.View
+            style={[
+              styles.fanButton,
+              styles.rightButton,
+              {
+                opacity: rightButtonAnim,
+                transform: [
+                  {
+                    translateX: rightButtonAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 110],
+                    }),
+                  },
+                  {
+                    translateY: rightButtonAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -110],
+                    }),
+                  },
+                  {
+                    scale: rightButtonAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.fanButtonTouchable}
+              onPress={() => handleNavigation('/ask-aura')}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={['#FF8A00', '#FF6E40']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.fanButtonInner}
+              >
+                <View style={styles.fanButtonGlow} />
+                <Sparkles color={AuraColors.white} size={24} />
+              </LinearGradient>
+              <Text style={styles.fanButtonLabel}>Ask Aura</Text>
+            </TouchableOpacity>
+          </Animated.View>
+
+          <Animated.View
+            style={{
+              transform: [
+                {
+                  rotate: mainButtonRotation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0deg', '45deg'],
+                  }),
+                },
+              ],
+            }}
+          >
+            <TouchableOpacity
+              style={styles.mainMicButton}
+              onPress={toggleMenu}
+              activeOpacity={0.8}
+            >
+              {menuExpanded ? (
+                <X color={AuraColors.white} size={36} />
+              ) : (
                 <Mic color={AuraColors.white} size={36} />
-              </TouchableOpacity>
-            </Animated.View>
-          )}
-
-
+              )}
+            </TouchableOpacity>
+          </Animated.View>
         </View>
       </View>
     </View>
@@ -529,80 +539,57 @@ const createStyles = (colors: any) => StyleSheet.create({
     shadowRadius: 16,
     elevation: 8,
   },
-  expandedCluster: {
+  fanButton: {
     position: 'absolute',
+    zIndex: 10,
+    alignItems: 'center',
+  },
+  leftButton: {
     bottom: 0,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingBottom: 0,
-    flexDirection: 'row',
-    gap: 28,
   },
-  clusterSmall: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  centerButton: {
+    bottom: 0,
   },
-  clusterCenterBig: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  rightButton: {
+    bottom: 0,
   },
-  clusterMic: {
-    position: 'absolute',
-    bottom: 72,
-    left: 0,
-    right: 0,
+  fanButtonTouchable: {
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  smallCircleTouchable: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  smallCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  fanButtonInner: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
     shadowColor: AuraColors.accentOrange,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.9,
-    shadowRadius: 22,
+    shadowOpacity: 0.8,
+    shadowRadius: 24,
     elevation: 12,
   },
-  glowHalo: {
+  fanButtonGlow: {
     position: 'absolute',
     top: -8,
     left: -8,
     right: -8,
     bottom: -8,
-    borderRadius: 36,
+    borderRadius: 38,
     backgroundColor: AuraColors.accentOrange,
-    opacity: 0.28,
+    opacity: 0.3,
     shadowColor: AuraColors.accentOrange,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 24,
+    shadowOpacity: 0.8,
+    shadowRadius: 20,
   },
-  bigWhiteCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.8)',
-    shadowColor: AuraColors.accentOrange,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 18,
-    elevation: 8,
+  fanButtonLabel: {
+    marginTop: 8,
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: colors.text,
+    textAlign: 'center',
   },
-
   leftGlow: {
     position: 'absolute',
     left: 0,
