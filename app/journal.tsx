@@ -312,31 +312,47 @@ export default function JournalScreen() {
             entries.map((entry) => (
               <TouchableOpacity
                 key={entry.id}
-                style={styles.entryCard}
-                activeOpacity={0.7}
-                onPress={() => handleEntryPress(entry)}
+                style={[styles.entryCard, entry.isProcessing && styles.processingCard]}
+                activeOpacity={entry.isProcessing ? 1 : 0.7}
+                onPress={() => !entry.isProcessing && handleEntryPress(entry)}
+                disabled={entry.isProcessing}
               >
-                <View style={styles.entryHeader}>
-                  <View style={styles.entryTitleRow}>
-                    <Play color={AuraColors.accentOrange} size={20} fill={AuraColors.accentOrange} />
-                    <Text style={styles.entryTitle} numberOfLines={1}>
-                      {entry.title}
-                    </Text>
+                {entry.isProcessing ? (
+                  <View style={styles.processingContainer}>
+                    <View style={styles.processingDotContainer}>
+                      <Animated.View style={[styles.processingDot, { opacity: 0.4 }]} />
+                      <Animated.View style={[styles.processingDot, { opacity: 0.6 }]} />
+                      <Animated.View style={[styles.processingDot, { opacity: 0.8 }]} />
+                    </View>
+                    <Text style={styles.processingTitle}>Processing Recording...</Text>
+                    <Text style={styles.processingSubtext}>Transcribing audio and generating summary</Text>
+                    <Text style={styles.entryDate}>{entry.date}</Text>
                   </View>
-                  <Text style={styles.entryDuration}>
-                    {Math.floor(entry.duration / 60)}:{(entry.duration % 60).toString().padStart(2, '0')}
-                  </Text>
-                </View>
-                <Text style={styles.entrySummary} numberOfLines={2}>
-                  {entry.summary}
-                </Text>
-                <View style={styles.transcriptPreview}>
-                  <Text style={styles.transcriptLabel}>Transcript</Text>
-                  <Text style={styles.transcriptPreviewText} numberOfLines={3}>
-                    {entry.transcript}
-                  </Text>
-                </View>
-                <Text style={styles.entryDate}>{entry.date}</Text>
+                ) : (
+                  <>
+                    <View style={styles.entryHeader}>
+                      <View style={styles.entryTitleRow}>
+                        <Play color={AuraColors.accentOrange} size={20} fill={AuraColors.accentOrange} />
+                        <Text style={styles.entryTitle} numberOfLines={1}>
+                          {entry.title}
+                        </Text>
+                      </View>
+                      <Text style={styles.entryDuration}>
+                        {Math.floor(entry.duration / 60)}:{(entry.duration % 60).toString().padStart(2, '0')}
+                      </Text>
+                    </View>
+                    <Text style={styles.entrySummary} numberOfLines={2}>
+                      {entry.summary}
+                    </Text>
+                    <View style={styles.transcriptPreview}>
+                      <Text style={styles.transcriptLabel}>Transcript</Text>
+                      <Text style={styles.transcriptPreviewText} numberOfLines={3}>
+                        {entry.transcript}
+                      </Text>
+                    </View>
+                    <Text style={styles.entryDate}>{entry.date}</Text>
+                  </>
+                )}
               </TouchableOpacity>
             ))
           )}
@@ -743,6 +759,37 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderLeftColor: AuraColors.accentOrange,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  processingCard: {
+    borderLeftColor: '#999',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  processingContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  processingDotContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  processingDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: AuraColors.accentOrange,
+  },
+  processingTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: colors.text,
+    marginBottom: 8,
+  },
+  processingSubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 12,
   },
   entryHeader: {
     flexDirection: 'row',

@@ -13,6 +13,7 @@ export interface JournalEntry {
   date: string;
   timestamp: number;
   duration: number;
+  isProcessing?: boolean;
 }
 
 export const [JournalProvider, useJournal] = createContextHook(() => {
@@ -32,6 +33,14 @@ export const [JournalProvider, useJournal] = createContextHook(() => {
     }
   }, []);
 
+  const updateEntry = useCallback((id: string, updates: Partial<JournalEntry>) => {
+    setEntries((prev) => 
+      prev.map((entry) => 
+        entry.id === id ? { ...entry, ...updates } : entry
+      )
+    );
+  }, []);
+
   const deleteEntry = useCallback((id: string) => {
     setEntries((prev) => prev.filter((entry) => entry.id !== id));
   }, []);
@@ -44,7 +53,8 @@ export const [JournalProvider, useJournal] = createContextHook(() => {
     entries,
     calendarEvents,
     addEntry,
+    updateEntry,
     deleteEntry,
     getEntry,
-  }), [entries, calendarEvents, addEntry, deleteEntry, getEntry]);
+  }), [entries, calendarEvents, addEntry, updateEntry, deleteEntry, getEntry]);
 });

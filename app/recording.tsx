@@ -7,7 +7,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { transcribeAudioFile, generateSummary, generateAuraSummary, extractCalendarEvents, SonioxRealtimeTranscription, TranscriptionToken } from '@/lib/soniox-transcription';
 import * as Haptics from 'expo-haptics';
-import { useJournal } from '@/contexts/JournalContext';
+import { useJournal, JournalEntry } from '@/contexts/JournalContext';
 import { router } from 'expo-router';
 import { Audio } from 'expo-av';
 
@@ -16,7 +16,7 @@ type RecordingState = 'recording' | 'paused';
 export default function RecordingScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const { addEntry } = useJournal();
+  const { addEntry, deleteEntry } = useJournal();
   
   const [recordingState, setRecordingState] = useState<RecordingState>('recording');
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
@@ -243,18 +243,15 @@ export default function RecordingScreen() {
       });
       
       setLiveTranscriptStatus('Listening...');
-      console.log('Soniox WebSocket connected, starting audio polling');
+      console.log('Soniox WebSocket connected, starting live recording stream');
       
-      // Wait a moment for the recording to start writing to file
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Wait a moment for the recording to start
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Start polling the recording file and sending chunks
-      client.sendAudioFileWithPolling(
-        () => recordingRef.current?.getURI() || null,
-        () => recordingRef.current !== null && recordingState === 'recording'
-      );
+      // Start streaming live audio from the recording
+      client.startLiveRecording(rec);
       
-      console.log('Audio polling started');
+      console.log('Live recording stream started');
       
     } catch (error) {
       console.error('Failed to start live transcription:', error);
@@ -308,7 +305,20 @@ export default function RecordingScreen() {
   };
 
   const transcribeAndSaveAudio = async (uri: string, existingTranscript: string | null) => {
+    const tempId = Date.now().toString();
+    
     try {
+      // Add processing placeholder immediately
+      addEntry({
+        title: 'Processing...',
+        audioUri: uri,
+        transcript: '',
+        summary: '',
+        date: new Date().toLocaleString(),
+        duration: recordingDuration,
+        isProcessing: true,
+      });
+      
       let text = existingTranscript;
       
       if (!text || text === 'Listening...' || text === 'Transcription error. Please try again.' || text === 'Transcription unavailable') {
@@ -333,6 +343,8 @@ export default function RecordingScreen() {
       
       const title = text.slice(0, 50) + (text.length > 50 ? '...' : '');
 
+      // Delete the processing entry and add the real one
+      deleteEntry(tempId);
       addEntry({
         title,
         audioUri: uri,
@@ -342,6 +354,7 @@ export default function RecordingScreen() {
         calendarEvents,
         date: new Date().toLocaleString(),
         duration: recordingDuration,
+        isProcessing: false,
       });
 
       if (Platform.OS !== 'web') {
@@ -349,6 +362,7 @@ export default function RecordingScreen() {
       }
     } catch (error) {
       console.error('Transcription error:', error);
+      deleteEntry(tempId);
     }
   };
 

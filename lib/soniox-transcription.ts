@@ -23,6 +23,8 @@ export class SonioxRealtimeTranscription {
   private accumulatedText = '';
   private audioQueue: ArrayBuffer[] = [];
   private isSending = false;
+  private recording: any = null;
+  private pollingInterval: any = null;
 
   async connect(callbacks: TranscriptionCallback): Promise<void> {
     this.callbacks = callbacks;
@@ -42,13 +44,11 @@ export class SonioxRealtimeTranscription {
         const config = {
           api_key: SONIOX_API_KEY,
           model: 'stt-rt-v3',
-          language_hints: ['en', 'es'],
+          language_hints: ['en', 'es', 'fr', 'de', 'it', 'pt', 'ko', 'ja', 'zh'],
           enable_language_identification: true,
           enable_speaker_diarization: true,
           enable_endpoint_detection: true,
-          audio_format: 'pcm_s16le',
-          sample_rate: 16000,
-          num_channels: 1,
+          audio_format: 'auto',
         };
 
         this.ws?.send(JSON.stringify(config));
@@ -168,58 +168,60 @@ export class SonioxRealtimeTranscription {
     }
   }
 
-  async sendAudioFileWithPolling(getUri: () => string | null, isRecording: () => boolean): Promise<void> {
-    if (!this.isConnected || !this.ws) {
-      console.warn('WebSocket not connected');
-      return;
-    }
-
-    let lastReadSize = 0;
-    const chunkSize = 3840;
-
-    const pollAndSend = async () => {
-      if (!this.isConnected || !isRecording()) {
-        console.log('Stopped polling audio file');
+  startLiveRecording(recording: any): void {
+    this.recording = recording;
+    
+    const sendAudioData = async () => {
+      if (!this.isConnected || !this.ws || !this.recording) {
         return;
       }
 
       try {
-        const uri = getUri();
-        if (!uri) {
-          console.log('No URI yet, will retry...');
-          setTimeout(pollAndSend, 500);
+        const status = await this.recording.getStatusAsync();
+        if (!status.isRecording) {
           return;
         }
 
-        const response = await fetch(uri);
-        const blob = await response.blob();
-        const arrayBuffer = await blob.arrayBuffer();
-
-        if (arrayBuffer.byteLength > lastReadSize) {
-          const newData = arrayBuffer.slice(lastReadSize);
-          console.log(`New audio data: ${newData.byteLength} bytes (total: ${arrayBuffer.byteLength})`);
-          
-          // Send new data in chunks
-          let offset = 0;
-          while (offset < newData.byteLength && this.isConnected) {
-            const chunk = newData.slice(offset, offset + chunkSize);
-            this.ws?.send(chunk);
-            offset += chunkSize;
-            await new Promise(resolve => setTimeout(resolve, 30));
+        const uri = this.recording.getURI();
+        if (uri) {
+          try {
+            const response = await fetch(uri);
+            const blob = await response.blob();
+            const arrayBuffer = await blob.arrayBuffer();
+            
+            if (arrayBuffer.byteLength > 0) {
+              const chunkSize = 8192;
+              let offset = 0;
+              
+              while (offset < arrayBuffer.byteLength && this.isConnected) {
+                const chunk = arrayBuffer.slice(offset, Math.min(offset + chunkSize, arrayBuffer.byteLength));
+                if (chunk.byteLength > 0) {
+                  this.ws?.send(chunk);
+                  console.log(`Sent audio chunk: ${chunk.byteLength} bytes`);
+                }
+                offset += chunkSize;
+              }
+            }
+          } catch (fetchError) {
+            console.log('Audio file not ready yet, will retry...');
           }
-
-          lastReadSize = arrayBuffer.byteLength;
         }
-
-        // Continue polling
-        setTimeout(pollAndSend, 500);
       } catch (error) {
-        console.error('Error polling audio file:', error);
-        setTimeout(pollAndSend, 500);
+        console.error('Error sending live audio:', error);
       }
     };
 
-    pollAndSend();
+    this.pollingInterval = setInterval(sendAudioData, 1000);
+    console.log('Started live recording stream to Soniox');
+  }
+
+  stopLiveRecording(): void {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+    }
+    this.recording = null;
+    console.log('Stopped live recording stream');
   }
 
   finishAudio(): void {
@@ -237,6 +239,7 @@ export class SonioxRealtimeTranscription {
   }
 
   disconnect(): void {
+    this.stopLiveRecording();
     if (this.ws) {
       this.ws.close();
       this.ws = null;
