@@ -69,7 +69,9 @@ function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
       <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="journal" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="journal" options={{ headerShown: false, animation: "slide_from_left" }} />
+      <Stack.Screen name="ask-aura" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="recording" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="settings" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="calendar" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="+not-found" />

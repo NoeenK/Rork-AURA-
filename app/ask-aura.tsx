@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Animated, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Keyboard } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Mic, ArrowUp } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { generateText } from '@rork/toolkit-sdk';
+import { Audio } from 'expo-av';
 
 export default function AskAuraScreen() {
   const insets = useSafeAreaInsets();
@@ -17,8 +18,12 @@ export default function AskAuraScreen() {
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
   const logoAnim = useRef(new Animated.Value(0)).current;
+  const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     Animated.loop(
@@ -35,7 +40,25 @@ export default function AskAuraScreen() {
         }),
       ])
     ).start();
-  }, []);
+
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+      }
+    );
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
+  }, [logoAnim]);
 
   const handleSend = async () => {
     if (!query.trim()) return;
@@ -84,11 +107,85 @@ export default function AskAuraScreen() {
     }
   };
 
-  const handleVoiceInput = () => {
+  const handleVoiceInput = async () => {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    console.log('Voice input feature coming soon!');
+
+    if (isRecording) {
+      if (recording) {
+        try {
+          await recording.stopAndUnloadAsync();
+          const uri = recording.getURI();
+          setRecording(null);
+          setIsRecording(false);
+
+          if (uri) {
+            const formData = new FormData();
+            const uriParts = uri.split('.');
+            const fileType = uriParts[uriParts.length - 1];
+            
+            formData.append('audio', {
+              uri,
+              name: `recording.${fileType}`,
+              type: `audio/${fileType}`,
+            } as any);
+
+            const response = await fetch('https://toolkit.rork.com/stt/transcribe/', {
+              method: 'POST',
+              body: formData,
+            });
+
+            const data = await response.json();
+            if (data.text) {
+              setQuery(data.text);
+              inputRef.current?.focus();
+            }
+          }
+        } catch (error) {
+          console.error('Error transcribing audio:', error);
+          setIsRecording(false);
+        }
+      }
+    } else {
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        });
+
+        const { recording: newRecording } = await Audio.Recording.createAsync({
+          android: {
+            extension: '.m4a',
+            outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+            audioEncoder: Audio.AndroidAudioEncoder.AAC,
+            sampleRate: 44100,
+            numberOfChannels: 2,
+            bitRate: 128000,
+          },
+          ios: {
+            extension: '.wav',
+            outputFormat: Audio.IOSOutputFormat.LINEARPCM,
+            audioQuality: Audio.IOSAudioQuality.HIGH,
+            sampleRate: 44100,
+            numberOfChannels: 2,
+            bitRate: 128000,
+            linearPCMBitDepth: 16,
+            linearPCMIsBigEndian: false,
+            linearPCMIsFloat: false,
+          },
+          web: {
+            mimeType: 'audio/webm',
+            bitsPerSecond: 128000,
+          },
+        });
+
+        setRecording(newRecording);
+        setIsRecording(true);
+      } catch (error) {
+        console.error('Failed to start recording:', error);
+      }
+    }
   };
 
   const logoScale = logoAnim.interpolate({
@@ -187,8 +284,9 @@ export default function AskAuraScreen() {
               <View style={styles.searchBarGlow} />
               <View style={styles.searchBarInner}>
                 <TextInput
+                  ref={inputRef}
                   style={styles.searchInput}
-                  placeholder="Ask me anything about your thoughts..."
+                  placeholder={query ? "" : "Ask me anything about your thoughts..."}
                   placeholderTextColor={colors.textSecondary}
                   value={query}
                   onChangeText={setQuery}
@@ -196,6 +294,7 @@ export default function AskAuraScreen() {
                   maxLength={500}
                   returnKeyType="send"
                   onSubmitEditing={handleSend}
+                  blurOnSubmit={false}
                 />
                 
                 <View style={styles.inputButtons}>
