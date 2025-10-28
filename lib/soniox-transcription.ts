@@ -19,9 +19,11 @@ export class SonioxRealtimeTranscription {
   private ws: WebSocket | null = null;
   private callbacks: TranscriptionCallback | null = null;
   private isConnected = false;
+  private isConfigured = false;
   private currentTokens: string[] = [];
   private finalTokens: string[] = [];
   private keepaliveInterval: any = null;
+  private audioQueue: ArrayBuffer[] = [];
 
   async connect(callbacks: TranscriptionCallback): Promise<void> {
     this.callbacks = callbacks;
@@ -48,9 +50,14 @@ export class SonioxRealtimeTranscription {
         console.log('Sending configuration:', config);
         this.ws?.send(JSON.stringify(config));
         
+        setTimeout(() => {
+          this.isConfigured = true;
+          console.log('Configuration sent, ready to stream audio');
+          this.processAudioQueue();
+        }, 100);
+        
         this.keepaliveInterval = setInterval(() => {
           if (this.ws && this.isConnected) {
-            console.log('Sending keepalive...');
             try {
               this.ws.send(JSON.stringify({ type: 'keepalive' }));
             } catch (error) {
@@ -109,6 +116,19 @@ export class SonioxRealtimeTranscription {
     }
   }
 
+  private processAudioQueue(): void {
+    while (this.audioQueue.length > 0 && this.isConfigured && this.isConnected && this.ws) {
+      const audioData = this.audioQueue.shift();
+      if (audioData) {
+        try {
+          this.ws.send(audioData);
+        } catch (error) {
+          console.error('Error sending queued audio:', error);
+        }
+      }
+    }
+  }
+
   sendAudio(audioData: string | ArrayBuffer): void {
     if (!this.isConnected || !this.ws) {
       console.warn('WebSocket not connected');
@@ -116,15 +136,23 @@ export class SonioxRealtimeTranscription {
     }
 
     try {
+      let buffer: ArrayBuffer;
+      
       if (typeof audioData === 'string') {
         const binaryData = atob(audioData);
         const bytes = new Uint8Array(binaryData.length);
         for (let i = 0; i < binaryData.length; i++) {
           bytes[i] = binaryData.charCodeAt(i);
         }
-        this.ws.send(bytes.buffer);
+        buffer = bytes.buffer;
       } else {
-        this.ws.send(audioData);
+        buffer = audioData;
+      }
+      
+      if (!this.isConfigured) {
+        this.audioQueue.push(buffer);
+      } else {
+        this.ws.send(buffer);
       }
     } catch (error) {
       console.error('Error sending audio to Soniox:', error);
@@ -151,6 +179,7 @@ export class SonioxRealtimeTranscription {
           this.ws.close();
           this.ws = null;
           this.isConnected = false;
+          this.isConfigured = false;
         }
       }, 1000);
     }

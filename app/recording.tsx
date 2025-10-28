@@ -190,59 +190,90 @@ export default function RecordingScreen() {
   };
 
   const startLiveTranscription = async (rec: Audio.Recording) => {
-    setLiveTranscript('Listening...');
+    setLiveTranscript('Processing audio...');
     
-    try {
-      const transcriptionService = new SonioxRealtimeTranscription();
-      sonioxTranscription.current = transcriptionService;
-      
-      const callbacks: TranscriptionCallback = {
-        onTranscript: (text: string, isFinal: boolean, speaker?: string) => {
-          console.log('Received transcript:', text, 'Final:', isFinal, 'Speaker:', speaker);
-          
-          if (speaker && speaker !== currentSpeaker) {
-            setCurrentSpeaker(speaker);
-            setSpeakers(prev => {
-              const newSpeakers = new Map(prev);
-              if (!newSpeakers.has(speaker)) {
-                newSpeakers.set(speaker, speaker);
-              }
-              return newSpeakers;
-            });
-          }
-          
-          if (isFinal) {
-            setAccumulatedTranscript(prev => {
-              const speakerPrefix = speaker ? speaker + ': ' : '';
-              const newText = prev ? prev + '\n' + speakerPrefix + text : speakerPrefix + text;
-              setLiveTranscript(newText);
-              
-              if (speaker) {
-                speakersRef.current.push({ speaker, text });
-              }
-              
-              return newText;
-            });
-            setCurrentWord('');
-          } else {
-            const words = text.trim().split(' ');
-            if (words.length > 0) {
-              setCurrentWord(words[words.length - 1]);
+    if (Platform.OS === 'web') {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const source = audioContext.createMediaStreamSource(stream);
+        const processor = audioContext.createScriptProcessor(4096, 1, 1);
+        
+        const transcriptionService = new SonioxRealtimeTranscription();
+        sonioxTranscription.current = transcriptionService;
+        
+        const callbacks: TranscriptionCallback = {
+          onTranscript: (text: string, isFinal: boolean, speaker?: string) => {
+            console.log('Received transcript:', text, 'Final:', isFinal, 'Speaker:', speaker);
+            
+            if (speaker && speaker !== currentSpeaker) {
+              setCurrentSpeaker(speaker);
+              setSpeakers(prev => {
+                const newSpeakers = new Map(prev);
+                if (!newSpeakers.has(speaker)) {
+                  newSpeakers.set(speaker, speaker);
+                }
+                return newSpeakers;
+              });
             }
-            const speakerPrefix = speaker ? speaker + ': ' : '';
-            setLiveTranscript(accumulatedTranscript + (accumulatedTranscript ? '\n' : '') + speakerPrefix + text);
+            
+            if (isFinal) {
+              setAccumulatedTranscript(prev => {
+                const speakerPrefix = speaker ? speaker + ': ' : '';
+                const newText = prev ? prev + '\n' + speakerPrefix + text : speakerPrefix + text;
+                setLiveTranscript(newText);
+                
+                if (speaker) {
+                  speakersRef.current.push({ speaker, text });
+                }
+                
+                return newText;
+              });
+              setCurrentWord('');
+            } else {
+              const words = text.trim().split(' ');
+              if (words.length > 0) {
+                setCurrentWord(words[words.length - 1]);
+              }
+              const speakerPrefix = speaker ? speaker + ': ' : '';
+              setLiveTranscript(accumulatedTranscript + (accumulatedTranscript ? '\n' : '') + speakerPrefix + text);
+            }
+          },
+          onError: (error: Error) => {
+            console.error('Soniox transcription error:', error);
+          },
+        };
+        
+        await transcriptionService.connect(callbacks);
+        console.log('Soniox live transcription connected');
+        
+        processor.onaudioprocess = (e) => {
+          const inputData = e.inputBuffer.getChannelData(0);
+          const targetSampleRate = 16000;
+          const sourceSampleRate = audioContext.sampleRate;
+          
+          const downsampledLength = Math.floor(inputData.length * targetSampleRate / sourceSampleRate);
+          const downsampledData = new Int16Array(downsampledLength);
+          
+          for (let i = 0; i < downsampledLength; i++) {
+            const sourceIndex = Math.floor(i * sourceSampleRate / targetSampleRate);
+            downsampledData[i] = Math.max(-32768, Math.min(32767, inputData[sourceIndex] * 32767));
           }
-        },
-        onError: (error: Error) => {
-          console.error('Soniox transcription error:', error);
-        },
-      };
-      
-      await transcriptionService.connect(callbacks);
-      console.log('Soniox live transcription started');
-    } catch (error) {
-      console.error('Failed to start Soniox transcription:', error);
-      setLiveTranscript('Transcription unavailable');
+          
+          if (transcriptionService.isActive()) {
+            transcriptionService.sendAudio(downsampledData.buffer);
+          }
+        };
+        
+        source.connect(processor);
+        processor.connect(audioContext.destination);
+        
+      } catch (error) {
+        console.error('Failed to start web live transcription:', error);
+        setLiveTranscript('Live transcription unavailable on mobile');
+      }
+    } else {
+      setLiveTranscript('Live transcription unavailable on mobile');
     }
   };
 

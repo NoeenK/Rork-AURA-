@@ -421,8 +421,8 @@ export default function MainScreen() {
                 style={[
                   styles.circleOptionSmall,
                   {
-                    bottom: 8,
-                    left: -85,
+                    bottom: 10,
+                    left: -70,
                     transform: [{ scale: circleScales[0] }],
                     opacity: circleOpacities[0],
                   },
@@ -441,7 +441,7 @@ export default function MainScreen() {
                 style={[
                   styles.circleOptionSmall,
                   {
-                    bottom: 40,
+                    bottom: 90,
                     transform: [{ scale: circleScales[1] }],
                     opacity: circleOpacities[1],
                   },
@@ -460,8 +460,8 @@ export default function MainScreen() {
                 style={[
                   styles.circleOptionSmall,
                   {
-                    bottom: 8,
-                    right: -85,
+                    bottom: 10,
+                    right: -70,
                     transform: [{ scale: circleScales[2] }],
                     opacity: circleOpacities[2],
                   },
