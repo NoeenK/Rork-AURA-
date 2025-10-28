@@ -195,11 +195,6 @@ export default function RecordingScreen() {
     
     if (Platform.OS === 'web') {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const source = audioContext.createMediaStreamSource(stream);
-        const processor = audioContext.createScriptProcessor(4096, 1, 1);
-        
         const transcriptionService = new SonioxRealtimeTranscription();
         sonioxTranscription.current = transcriptionService;
         
@@ -236,9 +231,6 @@ export default function RecordingScreen() {
               if (words.length > 0) {
                 setCurrentWord(words[words.length - 1]);
               }
-              const speakerPrefix = speaker ? `${speaker}: ` : '';
-              const displayText = accumulatedTranscript ? `${accumulatedTranscript}\n\n${speakerPrefix}${text}` : `${speakerPrefix}${text}`;
-              setLiveTranscript(displayText);
             }
           },
           onError: (error: Error) => {
@@ -252,28 +244,10 @@ export default function RecordingScreen() {
         };
         
         await transcriptionService.connect(callbacks);
-        console.log('Soniox live transcription connected with speaker diarization, language ID, and endpoint detection');
+        console.log('Soniox WebSocket connected');
         
-        processor.onaudioprocess = (e) => {
-          const inputData = e.inputBuffer.getChannelData(0);
-          const targetSampleRate = 16000;
-          const sourceSampleRate = audioContext.sampleRate;
-          
-          const downsampledLength = Math.floor(inputData.length * targetSampleRate / sourceSampleRate);
-          const downsampledData = new Int16Array(downsampledLength);
-          
-          for (let i = 0; i < downsampledLength; i++) {
-            const sourceIndex = Math.floor(i * sourceSampleRate / targetSampleRate);
-            downsampledData[i] = Math.max(-32768, Math.min(32767, inputData[sourceIndex] * 32767));
-          }
-          
-          if (transcriptionService.isActive()) {
-            transcriptionService.sendAudio(downsampledData.buffer);
-          }
-        };
-        
-        source.connect(processor);
-        processor.connect(audioContext.destination);
+        await transcriptionService.startAudioCapture();
+        console.log('Audio capture started with speaker diarization, language ID, and endpoint detection');
         
       } catch (error) {
         console.error('Failed to start web live transcription:', error);

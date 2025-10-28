@@ -30,11 +30,13 @@ export class SonioxRealtimeTranscription {
   private callbacks: TranscriptionCallback | null = null;
   private isConnected = false;
   private isConfigured = false;
-  private currentTokens: string[] = [];
-  private finalTokens: string[] = [];
   private keepaliveInterval: any = null;
   private audioQueue: ArrayBuffer[] = [];
   private allTokens: Token[] = [];
+  private audioContext: any = null;
+  private sourceNode: any = null;
+  private processorNode: any = null;
+  private mediaStream: any = null;
 
   async connect(callbacks: TranscriptionCallback): Promise<void> {
     this.callbacks = callbacks;
@@ -64,14 +66,16 @@ export class SonioxRealtimeTranscription {
         
         this.isConfigured = true;
         console.log('Configuration sent, ready to stream audio');
+        
         setTimeout(() => {
           this.processAudioQueue();
-        }, 10);
+        }, 50);
         
         this.keepaliveInterval = setInterval(() => {
           if (this.ws && this.isConnected) {
             try {
               this.ws.send(JSON.stringify({ type: 'keepalive' }));
+              console.log('Keepalive sent');
             } catch (error) {
               console.error('Keepalive error:', error);
             }
@@ -82,52 +86,42 @@ export class SonioxRealtimeTranscription {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log('Received message from Soniox:', data);
+          console.log('Received message from Soniox:', JSON.stringify(data).substring(0, 200));
 
           if (data.error_code) {
-            console.error('Soniox error:', data.error_message);
+            console.error('Soniox error:', data.error_code, data.error_message);
             this.callbacks?.onError(new Error(data.error_message || 'Unknown error'));
             return;
           }
 
           if (data.tokens && data.tokens.length > 0) {
-            const finalTokens = data.tokens.filter((t: any) => t.is_final);
-            const nonFinalTokens = data.tokens.filter((t: any) => !t.is_final);
-            
             const newTokens: Token[] = data.tokens.map((t: any) => ({
               text: t.text,
               isFinal: t.is_final,
               speaker: t.speaker ? 'Speaker ' + t.speaker : undefined,
               language: t.language,
               translationStatus: t.translation_status,
-              translation: t.translation,
             }));
             
-            if (finalTokens.length > 0) {
-              newTokens.forEach((token) => {
-                if (token.isFinal) {
-                  this.allTokens.push(token);
-                }
-              });
-            } else {
-              const tempTokens = [...this.allTokens, ...newTokens.filter((t) => !t.isFinal)];
-              this.callbacks?.onTokens?.(tempTokens);
-            }
+            newTokens.forEach((token) => {
+              if (token.isFinal) {
+                this.allTokens.push(token);
+              }
+            });
             
-            if (finalTokens.length > 0) {
-              const speaker = finalTokens[0]?.speaker ? 'Speaker ' + finalTokens[0].speaker : undefined;
-              const mergedText = this.mergeTokens(finalTokens);
-              this.finalTokens.push(...finalTokens.map((t: any) => t.text));
+            const allWithNonFinal = [...this.allTokens, ...newTokens.filter((t) => !t.isFinal)];
+            this.callbacks?.onTokens?.(allWithNonFinal);
+            
+            const finalTokensInBatch = data.tokens.filter((t: any) => t.is_final);
+            if (finalTokensInBatch.length > 0) {
+              const speaker = finalTokensInBatch[0]?.speaker ? 'Speaker ' + finalTokensInBatch[0].speaker : undefined;
+              const mergedText = this.mergeTokens(finalTokensInBatch);
               this.callbacks?.onTranscript(mergedText, true, speaker);
-              this.callbacks?.onTokens?.(this.allTokens);
             }
-            
-            if (nonFinalTokens.length > 0) {
-              const speaker = nonFinalTokens[0]?.speaker ? 'Speaker ' + nonFinalTokens[0].speaker : undefined;
-              const mergedNonFinal = this.mergeTokens(nonFinalTokens);
-              const fullText = [...this.finalTokens, mergedNonFinal].join(' ');
-              this.callbacks?.onTranscript(fullText, false, speaker);
-            }
+          }
+
+          if (data.finished) {
+            console.log('Transcription finished by server');
           }
         } catch (error) {
           console.error('Error parsing Soniox message:', error);
@@ -139,14 +133,68 @@ export class SonioxRealtimeTranscription {
         this.callbacks?.onError(new Error('WebSocket connection error'));
       };
 
-      this.ws.onclose = () => {
-        console.log('Soniox WebSocket connection closed');
+      this.ws.onclose = (event) => {
+        console.log('Soniox WebSocket closed, code:', event.code);
         this.isConnected = false;
+        this.cleanup();
       };
     } catch (error) {
       console.error('Failed to connect to Soniox:', error);
       throw error;
     }
+  }
+
+  async startAudioCapture(): Promise<void> {
+    if (Platform.OS !== 'web') {
+      console.log('Audio capture via WebSocket only supported on web');
+      return;
+    }
+
+    try {
+      this.mediaStream = await navigator.mediaDevices.getUserMedia({ 
+        audio: { 
+          channelCount: 1,
+          sampleRate: 16000,
+          echoCancellation: true,
+          noiseSuppression: true,
+        } 
+      });
+      
+      const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+      this.audioContext = new AudioContextClass({ sampleRate: 16000 });
+      this.sourceNode = this.audioContext.createMediaStreamSource(this.mediaStream);
+      
+      this.processorNode = this.audioContext.createScriptProcessor(4096, 1, 1);
+      
+      this.processorNode.onaudioprocess = (e: any) => {
+        if (!this.isConnected || !this.isConfigured) return;
+        
+        const inputData = e.inputBuffer.getChannelData(0);
+        const int16Buffer = this.convertFloat32ToInt16(inputData);
+        
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.ws.send(int16Buffer);
+        }
+      };
+      
+      this.sourceNode.connect(this.processorNode);
+      this.processorNode.connect(this.audioContext.destination);
+      
+      console.log('Audio capture started');
+    } catch (error) {
+      console.error('Failed to start audio capture:', error);
+      throw error;
+    }
+  }
+
+  private convertFloat32ToInt16(buffer: Float32Array): ArrayBuffer {
+    const l = buffer.length;
+    const int16Buffer = new Int16Array(l);
+    for (let i = 0; i < l; i++) {
+      const s = Math.max(-1, Math.min(1, buffer[i]));
+      int16Buffer[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    return int16Buffer.buffer;
   }
 
   private processAudioQueue(): void {
@@ -164,7 +212,10 @@ export class SonioxRealtimeTranscription {
 
   sendAudio(audioData: string | ArrayBuffer): void {
     if (!this.isConnected || !this.ws) {
-      console.warn('WebSocket not connected');
+      console.warn('WebSocket not connected, queueing audio');
+      if (typeof audioData !== 'string') {
+        this.audioQueue.push(audioData);
+      }
       return;
     }
 
@@ -193,28 +244,54 @@ export class SonioxRealtimeTranscription {
     }
   }
 
+  private cleanup(): void {
+    if (this.processorNode) {
+      this.processorNode.disconnect();
+      this.processorNode.onaudioprocess = null;
+      this.processorNode = null;
+    }
+    if (this.sourceNode) {
+      this.sourceNode.disconnect();
+      this.sourceNode = null;
+    }
+    if (this.audioContext && this.audioContext.state !== 'closed') {
+      this.audioContext.close();
+      this.audioContext = null;
+    }
+    if (this.mediaStream) {
+      this.mediaStream.getTracks().forEach((track: any) => track.stop());
+      this.mediaStream = null;
+    }
+  }
+
   disconnect(): void {
+    console.log('Disconnecting Soniox transcription...');
+    
     if (this.keepaliveInterval) {
       clearInterval(this.keepaliveInterval);
       this.keepaliveInterval = null;
     }
     
+    this.cleanup();
+    
     if (this.ws) {
       console.log('Sending empty frame to finalize...');
       try {
-        this.ws.send(new ArrayBuffer(0));
+        if (this.ws.readyState === WebSocket.OPEN) {
+          this.ws.send(new ArrayBuffer(0));
+        }
       } catch (error) {
         console.error('Error sending empty frame:', error);
       }
       
       setTimeout(() => {
-        if (this.ws) {
+        if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
           this.ws.close();
-          this.ws = null;
-          this.isConnected = false;
-          this.isConfigured = false;
         }
-      }, 1000);
+        this.ws = null;
+        this.isConnected = false;
+        this.isConfigured = false;
+      }, 500);
     }
   }
 
