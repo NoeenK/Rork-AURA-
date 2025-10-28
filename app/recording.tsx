@@ -7,7 +7,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { transcribeAudioFile, generateSummary, generateAuraSummary, extractCalendarEvents, SonioxRealtimeTranscription, TranscriptionToken } from '@/lib/soniox-transcription';
 import * as Haptics from 'expo-haptics';
-import { useJournal, JournalEntry } from '@/contexts/JournalContext';
+import { useJournal } from '@/contexts/JournalContext';
 import { router } from 'expo-router';
 import { Audio } from 'expo-av';
 
@@ -119,54 +119,49 @@ export default function RecordingScreen() {
     heartbeatOpacity.setValue(0.6);
   }, [pulseAnim, heartbeatScale, heartbeatOpacity]);
 
-  useEffect(() => {
-    const initRecording = async () => {
-      await startRecording();
-    };
-    initRecording();
-    return () => {
-      if (recording) {
-        recording.stopAndUnloadAsync();
-      }
-      if (durationInterval.current) {
-        clearInterval(durationInterval.current);
-      }
-      if (transcriptionInterval.current) {
-        clearInterval(transcriptionInterval.current);
-      }
-      if (audioStreamInterval.current) {
-        clearInterval(audioStreamInterval.current);
-      }
-      if (sonioxClient.current) {
-        sonioxClient.current.disconnect();
-      }
-    };
+  const startLiveTranscription = useCallback(async (rec: Audio.Recording) => {
+    try {
+      console.log('Starting live transcription with Soniox');
+      setLiveTranscriptStatus('Connecting to transcription service...');
+      
+      const client = new SonioxRealtimeTranscription();
+      sonioxClient.current = client;
+      
+      await client.connect({
+        onTranscript: (text: string, isFinal: boolean, tokens?: TranscriptionToken[]) => {
+          if (tokens && tokens.length > 0) {
+            setTranscriptionTokens([...tokens]);
+            setLiveTranscriptStatus('');
+            console.log('Received tokens:', tokens.length, 'Text:', text.slice(0, 50));
+            
+            if (isFinal) {
+              const finalText = tokens.filter(t => t.is_final).map(t => t.text).join('');
+              setAccumulatedTranscript(prev => prev + finalText);
+            }
+          }
+        },
+        onError: (error: Error) => {
+          console.error('Transcription error:', error);
+          setLiveTranscriptStatus('Transcription error. Recording will be transcribed after completion.');
+        },
+      });
+      
+      setLiveTranscriptStatus('Listening...');
+      console.log('Soniox WebSocket connected, starting live recording stream');
+      
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      client.startLiveRecording(rec);
+      
+      console.log('Live recording stream started');
+      
+    } catch (error) {
+      console.error('Failed to start live transcription:', error);
+      setLiveTranscriptStatus('Live transcription unavailable. Recording will be transcribed after completion.');
+    }
   }, []);
 
-  useEffect(() => {
-    if (recordingState === 'recording') {
-      startPulseAnimation();
-      startHeartbeatAnimation();
-      
-      durationInterval.current = setInterval(() => {
-        setRecordingDuration((prev) => prev + 1);
-      }, 1000) as any;
-    } else if (recordingState === 'paused') {
-      stopAnimations();
-      if (durationInterval.current) {
-        clearInterval(durationInterval.current);
-        durationInterval.current = null;
-      }
-    }
-
-    return () => {
-      if (durationInterval.current) {
-        clearInterval(durationInterval.current);
-      }
-    };
-  }, [recordingState, startPulseAnimation, startHeartbeatAnimation, stopAnimations]);
-
-  const startRecording = async () => {
+  const startRecording = useCallback(async () => {
     try {
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
@@ -212,52 +207,51 @@ export default function RecordingScreen() {
       console.error('Failed to start recording:', error);
       router.back();
     }
-  };
+  }, [startLiveTranscription]);
 
-  const startLiveTranscription = async (rec: Audio.Recording) => {
-    try {
-      console.log('Starting live transcription with Soniox');
-      setLiveTranscriptStatus('Connecting to transcription service...');
+  useEffect(() => {
+    startRecording();
+    return () => {
+      if (recordingRef.current) {
+        recordingRef.current.stopAndUnloadAsync();
+      }
+      if (durationInterval.current) {
+        clearInterval(durationInterval.current);
+      }
+      if (transcriptionInterval.current) {
+        clearInterval(transcriptionInterval.current);
+      }
+      if (audioStreamInterval.current) {
+        clearInterval(audioStreamInterval.current);
+      }
+      if (sonioxClient.current) {
+        sonioxClient.current.disconnect();
+      }
+    };
+  }, [startRecording]);
+
+  useEffect(() => {
+    if (recordingState === 'recording') {
+      startPulseAnimation();
+      startHeartbeatAnimation();
       
-      // Initialize Soniox client
-      const client = new SonioxRealtimeTranscription();
-      sonioxClient.current = client;
-      
-      await client.connect({
-        onTranscript: (text: string, isFinal: boolean, tokens?: TranscriptionToken[]) => {
-          if (tokens && tokens.length > 0) {
-            setTranscriptionTokens([...tokens]);
-            setLiveTranscriptStatus('');
-            console.log('Received tokens:', tokens.length, 'Text:', text.slice(0, 50));
-            
-            if (isFinal) {
-              const finalText = tokens.filter(t => t.is_final).map(t => t.text).join('');
-              setAccumulatedTranscript(prev => prev + finalText);
-            }
-          }
-        },
-        onError: (error: Error) => {
-          console.error('Transcription error:', error);
-          setLiveTranscriptStatus('Transcription error. Recording will be transcribed after completion.');
-        },
-      });
-      
-      setLiveTranscriptStatus('Listening...');
-      console.log('Soniox WebSocket connected, starting live recording stream');
-      
-      // Wait a moment for the recording to start
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Start streaming live audio from the recording
-      client.startLiveRecording(rec);
-      
-      console.log('Live recording stream started');
-      
-    } catch (error) {
-      console.error('Failed to start live transcription:', error);
-      setLiveTranscriptStatus('Live transcription unavailable. Recording will be transcribed after completion.');
+      durationInterval.current = setInterval(() => {
+        setRecordingDuration((prev) => prev + 1);
+      }, 1000) as any;
+    } else if (recordingState === 'paused') {
+      stopAnimations();
+      if (durationInterval.current) {
+        clearInterval(durationInterval.current);
+        durationInterval.current = null;
+      }
     }
-  };
+
+    return () => {
+      if (durationInterval.current) {
+        clearInterval(durationInterval.current);
+      }
+    };
+  }, [recordingState, startPulseAnimation, startHeartbeatAnimation, stopAnimations]);
 
   const stopRecording = async () => {
     if (!recording) return;
