@@ -406,26 +406,6 @@ ${selectedFullEntry.transcript}`;
                           <Calendar color={colors.textSecondary} size={14} />
                           <Text style={styles.entryDateTop}>{entry.date}</Text>
                         </View>
-                        <TouchableOpacity
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            if (Platform.OS !== 'web') {
-                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            }
-                            setShowShareMenu(entry.id);
-                          }}
-                          activeOpacity={0.7}
-                          style={styles.shareButton}
-                        >
-                          <LinearGradient
-                            colors={['rgba(255, 138, 0, 0.2)', 'rgba(255, 110, 64, 0.25)']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.shareButtonGradient}
-                          >
-                            <Send color={AuraColors.accentOrange} size={14} strokeWidth={2.5} />
-                          </LinearGradient>
-                        </TouchableOpacity>
                       </View>
                       <View style={styles.entryDateTimeRow}>
                         <Clock color={colors.textSecondary} size={14} />
@@ -1158,7 +1138,6 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   entryTopRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 4,
   },

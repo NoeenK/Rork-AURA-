@@ -560,20 +560,32 @@ export async function extractCalendarEvents(transcript: string): Promise<Calenda
     // Calculate next week dates
     const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const currentDayOfWeek = now.getDay();
+    const currentHour = now.getHours();
     const nextWeekDates: Record<string, string> = {};
+    const thisWeekDates: Record<string, string> = {};
     
-    // For each day of the week, calculate the next occurrence
+    // For each day of the week, calculate this week and next week occurrence
     for (let targetDay = 0; targetDay < 7; targetDay++) {
-      let daysUntilTarget = targetDay - currentDayOfWeek;
+      let daysUntilTargetThisWeek = targetDay - currentDayOfWeek;
+      let daysUntilTargetNextWeek = targetDay - currentDayOfWeek;
       
-      // If the day has already passed this week or is today, add 7 days to get next week's occurrence
-      if (daysUntilTarget <= 0) {
-        daysUntilTarget += 7;
+      // This week: if it's the same day but later in the day, or future days this week
+      if (daysUntilTargetThisWeek < 0 || (daysUntilTargetThisWeek === 0 && currentHour >= 18)) {
+        // Day has passed or it's late today
+        daysUntilTargetThisWeek += 7;
       }
       
-      const futureDate = new Date(now.getTime() + daysUntilTarget * 24 * 60 * 60 * 1000);
+      // Next week is always 7+ days away
+      if (daysUntilTargetNextWeek <= 0) {
+        daysUntilTargetNextWeek += 7;
+      }
+      
+      const thisWeekDate = new Date(now.getTime() + daysUntilTargetThisWeek * 24 * 60 * 60 * 1000);
+      const nextWeekDate = new Date(now.getTime() + (daysUntilTargetNextWeek + 7) * 24 * 60 * 60 * 1000);
       const dayName = daysOfWeek[targetDay];
-      nextWeekDates[dayName] = futureDate.toISOString().split('T')[0];
+      
+      thisWeekDates[dayName] = thisWeekDate.toISOString().split('T')[0];
+      nextWeekDates[dayName] = nextWeekDate.toISOString().split('T')[0];
     }
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -602,15 +614,27 @@ IMPORTANT DATE PARSING RULES:
 - "tonight" = ${today}
 - "this evening" = ${today}
 - "this afternoon" = ${today}
-- "next Monday" = ${nextWeekDates['Monday']}
-- "next Tuesday" = ${nextWeekDates['Tuesday']}
-- "next Wednesday" = ${nextWeekDates['Wednesday']}
-- "next Thursday" = ${nextWeekDates['Thursday']}
-- "next Friday" = ${nextWeekDates['Friday']}
-- "next Saturday" = ${nextWeekDates['Saturday']}
-- "next Sunday" = ${nextWeekDates['Sunday']}
-- For "on [day name]" or "this [day name]", if the day has already passed this week, assume next week
+
+- For day names WITHOUT "next" prefix (e.g., "on Monday", "Monday", "this Monday"):
+  - Monday = ${thisWeekDates['Monday']}
+  - Tuesday = ${thisWeekDates['Tuesday']}
+  - Wednesday = ${thisWeekDates['Wednesday']}
+  - Thursday = ${thisWeekDates['Thursday']}
+  - Friday = ${thisWeekDates['Friday']}
+  - Saturday = ${thisWeekDates['Saturday']}
+  - Sunday = ${thisWeekDates['Sunday']}
+
+- For "next [day name]" (explicitly mentions "next"):
+  - next Monday = ${nextWeekDates['Monday']}
+  - next Tuesday = ${nextWeekDates['Tuesday']}
+  - next Wednesday = ${nextWeekDates['Wednesday']}
+  - next Thursday = ${nextWeekDates['Thursday']}
+  - next Friday = ${nextWeekDates['Friday']}
+  - next Saturday = ${nextWeekDates['Saturday']}
+  - next Sunday = ${nextWeekDates['Sunday']}
+
 - For "in X days", add X days to today's date
+- CRITICAL: When you see a day name without "next", use THIS WEEK's date, NOT next week!
 
 TIME PARSING RULES:
 - Parse "2pm", "2 pm", "2:00 pm" as "14:00"
