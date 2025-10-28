@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView, PanResponder } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView, PanResponder, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Mic, Calendar, Settings, Brain, TrendingUp, Target, Zap } from 'lucide-react-native';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 
@@ -15,8 +16,8 @@ export default function MainScreen() {
   const [showArrow, setShowArrow] = useState<boolean>(true);
 
   const arrowAnim = useRef(new Animated.Value(0)).current;
-  const leftGlowAnim = useRef(new Animated.Value(0)).current;
-  const rightGlowAnim = useRef(new Animated.Value(0)).current;
+  const leftGlowAnim = useRef(new Animated.Value(0.3)).current;
+  const rightGlowAnim = useRef(new Animated.Value(0.3)).current;
 
   const panResponder = useRef(
     PanResponder.create({
@@ -26,14 +27,22 @@ export default function MainScreen() {
       },
       onPanResponderMove: (_, gestureState) => {
         if (gestureState.dx < -50) {
-          leftGlowAnim.setValue(Math.min(1, Math.abs(gestureState.dx) / 100));
+          leftGlowAnim.setValue(Math.min(1, 0.3 + Math.abs(gestureState.dx) / 150));
         } else if (gestureState.dx > 50) {
-          rightGlowAnim.setValue(Math.min(1, gestureState.dx / 100));
+          rightGlowAnim.setValue(Math.min(1, 0.3 + gestureState.dx / 150));
         }
       },
       onPanResponderRelease: (_, gestureState) => {
-        leftGlowAnim.setValue(0);
-        rightGlowAnim.setValue(0);
+        Animated.timing(leftGlowAnim, {
+          toValue: 0.3,
+          duration: 300,
+          useNativeDriver: false,
+        }).start();
+        Animated.timing(rightGlowAnim, {
+          toValue: 0.3,
+          duration: 300,
+          useNativeDriver: false,
+        }).start();
         
         if (gestureState.dx > 100) {
           router.push('/journal');
@@ -124,7 +133,11 @@ export default function MainScreen() {
       
       <View style={[styles.content, { paddingTop: insets.top + 16 }]}>
         <View style={styles.header}>
-          <Text style={styles.title}>AURA</Text>
+          <Image 
+            source={{ uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/2fkj0mco5kwmu34f2d41n' }}
+            style={styles.titleImage}
+            resizeMode="contain"
+          />
           <View style={styles.headerIcons}>
             <TouchableOpacity onPress={handleCalendar} style={styles.headerIcon}>
               <Calendar color={colors.text} size={24} />
@@ -245,11 +258,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 8,
   },
-  title: {
-    fontSize: 34,
-    fontWeight: '800' as const,
-    color: colors.text,
-    letterSpacing: 2,
+  titleImage: {
+    width: 120,
+    height: 40,
   },
   headerIcons: {
     flexDirection: 'row',
@@ -341,21 +352,24 @@ const createStyles = (colors: any) => StyleSheet.create({
   leftGlow: {
     position: 'absolute',
     left: 0,
-    top: 0,
-    bottom: 0,
-    width: 4,
+    top: '20%',
+    bottom: '20%',
+    width: 3,
     zIndex: 10,
+    borderRadius: 1.5,
   },
   rightGlow: {
     position: 'absolute',
     right: 0,
-    top: 0,
-    bottom: 0,
-    width: 4,
+    top: '20%',
+    bottom: '20%',
+    width: 3,
     zIndex: 10,
+    borderRadius: 1.5,
   },
   glowGradient: {
     flex: 1,
+    borderRadius: 1.5,
   },
   arrowContainer: {
     alignItems: 'center',

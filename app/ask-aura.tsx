@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Keyboard, PanResponder, TouchableWithoutFeedback } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Keyboard, PanResponder, TouchableWithoutFeedback, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Mic, ArrowUp } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -22,7 +22,7 @@ export default function AskAuraScreen() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
-  const logoAnim = useRef(new Animated.Value(0)).current;
+
   const inputRef = useRef<TextInput>(null);
   
   const panResponder = useRef(
@@ -40,21 +40,6 @@ export default function AskAuraScreen() {
   ).current;
 
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(logoAnim, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(logoAnim, {
-          toValue: 0,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-
     const keyboardWillShow = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
       (e) => {
@@ -72,7 +57,7 @@ export default function AskAuraScreen() {
       keyboardWillShow.remove();
       keyboardWillHide.remove();
     };
-  }, [logoAnim]);
+  }, []);
 
   const handleSend = async () => {
     if (!query.trim()) return;
@@ -202,15 +187,7 @@ export default function AskAuraScreen() {
     }
   };
 
-  const logoScale = logoAnim.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [1, 1.1, 1],
-  });
 
-  const logoOpacity = logoAnim.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [0.6, 1, 0.6],
-  });
 
   const styles = createStyles(colors);
 
@@ -238,26 +215,13 @@ export default function AskAuraScreen() {
         
         {messages.length === 0 ? (
           <View style={styles.logoContainer} {...panResponder.panHandlers}>
-            <Animated.View 
-              style={[
-                styles.logoWrapper,
-                {
-                  transform: [{ scale: logoScale }],
-                  opacity: logoOpacity,
-                }
-              ]}
-            >
-              <View style={styles.glassLogoContainer}>
-                <LinearGradient
-                  colors={[AuraColors.accentOrange, '#FF8C42', '#FFA500']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.logoGradient}
-                >
-                  <Text style={styles.logoText}>AURA</Text>
-                </LinearGradient>
-              </View>
-            </Animated.View>
+            <View style={styles.logoWrapper}>
+              <Image 
+                source={{ uri: 'https://pub-e001eb4506b145aa938b5d3badbff6a5.r2.dev/attachments/2fkj0mco5kwmu34f2d41n' }}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
+            </View>
           </View>
         ) : (
           <View style={styles.messagesWrapper}>
@@ -323,12 +287,12 @@ export default function AskAuraScreen() {
                     activeOpacity={0.7}
                   >
                     <LinearGradient
-                      colors={['#48DBFB', '#0ABDE3']}
+                      colors={isRecording ? ['#FF8C42', AuraColors.accentOrange] : ['rgba(255, 140, 66, 0.3)', 'rgba(255, 107, 0, 0.3)']}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={styles.buttonGradient}
                     >
-                      <Mic color={AuraColors.white} size={20} />
+                      <Mic color={isRecording ? AuraColors.white : AuraColors.accentOrange} size={20} />
                     </LinearGradient>
                   </TouchableOpacity>
                   
@@ -388,37 +352,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 40,
   },
   logoWrapper: {
-    borderRadius: 100,
-    overflow: 'hidden',
-    shadowColor: AuraColors.accentOrange,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.6,
-    shadowRadius: 24,
-    elevation: 12,
-  },
-  glassLogoContainer: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 8,
-  },
-  logoGradient: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 70,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoText: {
-    fontSize: 36,
-    fontWeight: '900' as const,
-    color: AuraColors.white,
-    letterSpacing: 3,
+  logoImage: {
+    width: 200,
+    height: 80,
   },
   messagesWrapper: {
     flex: 1,
@@ -523,7 +462,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     height: 44,
     borderRadius: 22,
     overflow: 'hidden',
-    shadowColor: '#48DBFB',
+    shadowColor: AuraColors.accentOrange,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
