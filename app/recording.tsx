@@ -284,13 +284,14 @@ export default function RecordingScreen() {
       
       recordingRef.current = null;
 
-      router.back();
-
       if (uri) {
         const fullTranscript = finalTokens.map(t => t.text).join(' ').replace(/\s+/g, ' ').trim() || null;
         const finalSpeakers = speakersRef.current.length > 0 ? speakersRef.current : undefined;
-        transcribeAndSaveAudio(uri, fullTranscript, finalSpeakers);
+        console.log('Processing transcription before navigating back...');
+        await transcribeAndSaveAudio(uri, fullTranscript, finalSpeakers);
       }
+
+      router.back();
     } catch (error) {
       console.error('Failed to stop recording:', error);
       recordingRef.current = null;
