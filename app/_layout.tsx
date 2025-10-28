@@ -6,7 +6,7 @@ import { trpc, trpcClient } from "@/lib/trpc";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { JournalProvider } from "@/contexts/JournalContext";
 import { Audio } from "expo-av";
-import { Alert, Platform } from "react-native";
+import { Platform } from "react-native";
 
 const queryClient = new QueryClient();
 
@@ -41,21 +41,13 @@ function RootLayoutNav() {
         const audioPermission = await Audio.requestPermissionsAsync();
         
         if (!audioPermission.granted) {
-          Alert.alert(
-            'Microphone Permission Required',
-            'AURA needs access to your microphone to record audio entries.',
-            [{ text: 'OK' }]
-          );
+          console.log('Microphone permission not granted');
         }
         
         if (Platform.OS === 'ios') {
           const speechPermission = await requestSpeechRecognitionPermission();
           if (!speechPermission) {
-            Alert.alert(
-              'Speech Recognition Permission',
-              'AURA can provide live transcription with Speech Recognition access.',
-              [{ text: 'OK' }]
-            );
+            console.log('Speech recognition permission not granted');
           }
         }
       } catch (error) {
