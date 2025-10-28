@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 
 const SONIOX_API_KEY = '14f5b7c577d9b2c6f1c29351700ec4c9f233684dfdf27f67909a32262c896bde';
-const SONIOX_API_URL = 'https://api.soniox.com/transcribe-async';
+const SONIOX_API_URL = 'https://api.soniox.com/transcribe';
 const SONIOX_WEBSOCKET_URL = 'wss://api.soniox.com/transcribe-websocket';
 const OPENAI_API_KEY = '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';
 
@@ -148,8 +148,8 @@ export async function transcribeAudioFile(uri: string): Promise<{
 
     const requestBody = {
       api_key: SONIOX_API_KEY,
-      audio: [audioBase64],
-      model: 'en_v2_medical',
+      audio: audioBase64,
+      model: 'en_v2',
       enable_speaker_identification: true,
       enable_global_speaker_diarization: true,
       include_nonfinal: false,
@@ -173,7 +173,7 @@ export async function transcribeAudioFile(uri: string): Promise<{
     }
 
     const data = await response.json();
-    console.log('Transcription result:', data);
+    console.log('Transcription result:', JSON.stringify(data, null, 2));
     
     const speakers: SpeakerSegment[] = [];
     let fullTranscript = '';
