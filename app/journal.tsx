@@ -531,7 +531,13 @@ ${selectedFullEntry.transcript}`;
                   <View style={styles.metadataRow}>
                     <Calendar color={colors.textSecondary} size={16} strokeWidth={2} />
                     <Text style={styles.metadataText}>
-                      {selectedFullEntry.date} || {selectedFullEntry.duration < 60 ? `${selectedFullEntry.duration}s` : `${Math.floor(selectedFullEntry.duration / 60)} min`}
+                      {selectedFullEntry.date}
+                    </Text>
+                  </View>
+                  <View style={styles.metadataRow}>
+                    <Clock color={colors.textSecondary} size={16} strokeWidth={2} />
+                    <Text style={styles.metadataText}>
+                      {new Date(selectedFullEntry.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} | {selectedFullEntry.duration < 60 ? `${selectedFullEntry.duration}s` : `${Math.floor(selectedFullEntry.duration / 60)} min`}
                     </Text>
                   </View>
                   {selectedFullEntry.location && (
@@ -626,11 +632,20 @@ ${selectedFullEntry.transcript}`;
                         editableTodos.map((task: string, idx: number) => (
                           <View key={idx} style={styles.todoItemContainer}>
                             <TouchableOpacity 
-                              style={styles.todoCheckbox}
+                              style={styles.todoCheckboxContainer}
                               onPress={() => handleTodoToggle(idx)}
                               activeOpacity={0.7}
                             >
-                              <View style={styles.todoBullet} />
+                              <LinearGradient
+                                colors={checkedTodos[idx] ? ['rgba(255, 138, 0, 0.3)', 'rgba(255, 110, 64, 0.3)'] : ['rgba(255, 138, 0, 0.15)', 'rgba(255, 110, 64, 0.15)']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 1 }}
+                                style={styles.todoCheckboxSquare}
+                              >
+                                {checkedTodos[idx] && (
+                                  <Text style={styles.checkmarkText}>✓</Text>
+                                )}
+                              </LinearGradient>
                             </TouchableOpacity>
                             <TextInput
                               style={[styles.editableTodoText, checkedTodos[idx] && styles.todoTextChecked]}
@@ -1377,8 +1392,23 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 16,
     gap: 12,
   },
-  todoCheckbox: {
-    paddingTop: 8,
+  todoCheckboxContainer: {
+    paddingTop: 2,
+  },
+  todoCheckboxSquare: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 138, 0, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  checkmarkText: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: AuraColors.accentOrange,
   },
   editableTodoText: {
     flex: 1,

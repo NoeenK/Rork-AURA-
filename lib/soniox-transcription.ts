@@ -557,6 +557,17 @@ export async function extractCalendarEvents(transcript: string): Promise<Calenda
     const today = now.toISOString().split('T')[0];
     const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     
+    // Calculate next week dates
+    const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const nextWeekDates: Record<string, string> = {};
+    for (let i = 1; i <= 14; i++) {
+      const futureDate = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
+      const dayName = daysOfWeek[futureDate.getDay()];
+      if (!nextWeekDates[dayName] || i <= 7) {
+        nextWeekDates[dayName] = futureDate.toISOString().split('T')[0];
+      }
+    }
+    
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -572,36 +583,58 @@ export async function extractCalendarEvents(transcript: string): Promise<Calenda
 
 Extract any mentions of events, meetings, appointments, or plans with dates and times.
 
-IMPORTANT PARSING RULES:
-- "tomorrow" means ${tomorrow}
-- "today" means ${today}
-- "tonight" means ${today}
-- "this evening" means ${today}
-- Convert relative dates ("next Monday", "in 2 days") to YYYY-MM-DD format
-- Parse times like "2pm", "2:00", "14:00" to HH:MM 24-hour format (e.g., "14:00")
-- Extract participant names mentioned (e.g., "with Mark", "Mark and I")
-- Infer event type from context (e.g., "tennis" → "Tennis with [name]")
+CURRENT DATE AND TIME REFERENCE:
+- Today is: ${now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} (${today})
+- Current day of week: ${daysOfWeek[now.getDay()]}
+- Current time: ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
 
-Return ONLY a valid JSON array of events. Each event must have:
-- title: Brief description of the event (e.g., "Tennis with Mark")
-- date: YYYY-MM-DD format
-- time: HH:MM 24-hour format (optional if time not mentioned)
-- description: Full context from transcript
-- participants: Array of names mentioned (optional)
+IMPORTANT DATE PARSING RULES:
+- "tomorrow" = ${tomorrow}
+- "today" = ${today}
+- "tonight" = ${today}
+- "this evening" = ${today}
+- "this afternoon" = ${today}
+- "next Monday" = ${nextWeekDates['Monday']}
+- "next Tuesday" = ${nextWeekDates['Tuesday']}
+- "next Wednesday" = ${nextWeekDates['Wednesday']}
+- "next Thursday" = ${nextWeekDates['Thursday']}
+- "next Friday" = ${nextWeekDates['Friday']}
+- "next Saturday" = ${nextWeekDates['Saturday']}
+- "next Sunday" = ${nextWeekDates['Sunday']}
+- For "on [day name]" or "this [day name]", if the day has already passed this week, assume next week
+- For "in X days", add X days to today's date
 
-If no events are found, return an empty array [].
-Do not include any markdown formatting or explanation, just the raw JSON array.
+TIME PARSING RULES:
+- Parse "2pm", "2 pm", "2:00 pm" as "14:00"
+- Parse "2am", "2 am", "2:00 am" as "02:00"
+- Parse "noon" or "12pm" as "12:00"
+- Parse "midnight" or "12am" as "00:00"
+- Default missing minutes to "00"
 
-Current date/time for reference: ${now.toISOString()}
-Day of week: ${now.toLocaleDateString('en-US', { weekday: 'long' })}`
+EVENT EXTRACTION:
+- Extract participant names (e.g., "with Mark", "meeting with Sarah")
+- Infer activity from context (e.g., "playing tennis with Mark" → title: "Tennis with Mark")
+- Include full context in description field
+
+RETURN FORMAT:
+Return ONLY a valid JSON array (no markdown, no explanation). Each event must have:
+{
+  "title": "Brief description (e.g., 'Meeting with Mark')",
+  "date": "YYYY-MM-DD format",
+  "time": "HH:MM in 24-hour format (optional)",
+  "description": "Full context from transcript",
+  "participants": ["Array of names (optional)"]
+}
+
+If no events found, return: []`
           },
           {
             role: 'user',
             content: `Extract calendar events from this transcript:\n\n${transcript}`
           }
         ],
-        temperature: 0.2,
-        max_tokens: 800,
+        temperature: 0.1,
+        max_tokens: 1000,
       }),
     });
 
