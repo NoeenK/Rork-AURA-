@@ -104,7 +104,7 @@ export class SonioxRealtimeTranscription {
               const token: Token = {
                 text: t.text || '',
                 isFinal: t.is_final || false,
-                speaker: t.speaker ? 'Speaker ' + t.speaker : undefined,
+                speaker: t.speaker ? 'Speaker ' + t.speaker : 'Speaker 1',
                 language: t.language,
                 translationStatus: t.translation_status,
               };
@@ -118,17 +118,15 @@ export class SonioxRealtimeTranscription {
 
             // Emit buffered tokens periodically to reduce fragmentation
             const now = Date.now();
-            if (this.tokenBuffer.length > 0 && (now - this.lastEmitTime > 500 || this.tokenBuffer.length > 10)) {
+            if (this.tokenBuffer.length > 0 && (now - this.lastEmitTime > 1000 || this.tokenBuffer.length > 15)) {
               this.finalTokens.push(...this.tokenBuffer);
               this.tokenBuffer = [];
               this.lastEmitTime = now;
               this.callbacks?.onFinalTokens([...this.finalTokens], currentNonFinalTokens);
             } else if (currentNonFinalTokens.length > 0) {
-              // Still emit non-final tokens for real-time feedback
               this.callbacks?.onFinalTokens([...this.finalTokens], currentNonFinalTokens);
             }
 
-            // Set/reset timeout to flush remaining tokens
             if (this.bufferTimeout) {
               clearTimeout(this.bufferTimeout);
             }
@@ -139,7 +137,7 @@ export class SonioxRealtimeTranscription {
                 this.lastEmitTime = Date.now();
                 this.callbacks?.onFinalTokens([...this.finalTokens], []);
               }
-            }, 500);
+            }, 1000);
           }
 
           if (data.finished) {

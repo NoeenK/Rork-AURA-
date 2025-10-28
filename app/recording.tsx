@@ -418,13 +418,15 @@ export default function RecordingScreen() {
     finalTokens.forEach((token, idx) => {
       const speaker = token.speaker || 'Speaker 1';
       
-      if (speaker !== currentSpeaker && currentTokens.length > 0) {
-        groups.push({ speaker: currentSpeaker, tokens: currentTokens, isNonFinal: false });
-        currentTokens = [];
+      if (speaker !== currentSpeaker) {
+        if (currentTokens.length > 0) {
+          groups.push({ speaker: currentSpeaker, tokens: currentTokens, isNonFinal: false });
+        }
+        currentSpeaker = speaker;
+        currentTokens = [token];
+      } else {
+        currentTokens.push(token);
       }
-      
-      currentSpeaker = speaker;
-      currentTokens.push(token);
       
       if (idx === finalTokens.length - 1) {
         groups.push({ speaker: currentSpeaker, tokens: currentTokens, isNonFinal: false });
@@ -433,7 +435,13 @@ export default function RecordingScreen() {
 
     if (nonFinalTokens.length > 0) {
       const nonFinalSpeaker = nonFinalTokens[0]?.speaker || 'Speaker 1';
-      groups.push({ speaker: nonFinalSpeaker, tokens: nonFinalTokens, isNonFinal: true });
+      const lastGroup = groups[groups.length - 1];
+      
+      if (lastGroup && lastGroup.speaker === nonFinalSpeaker) {
+        lastGroup.tokens.push(...nonFinalTokens);
+      } else {
+        groups.push({ speaker: nonFinalSpeaker, tokens: nonFinalTokens, isNonFinal: true });
+      }
     }
 
     return groups.map((group, groupIdx) => {
