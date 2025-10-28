@@ -322,7 +322,7 @@ export default function MainScreen() {
                   {
                     translateY: centerButtonAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, -160],
+                      outputRange: [0, -180],
                     }),
                   },
                   {
@@ -413,12 +413,12 @@ export default function MainScreen() {
             }}
           >
             <TouchableOpacity
-              style={styles.mainMicButton}
+              style={[styles.mainMicButton, menuExpanded && styles.mainMicButtonExpanded]}
               onPress={toggleMenu}
               activeOpacity={0.8}
             >
               {menuExpanded ? (
-                <X color={AuraColors.white} size={36} />
+                <X color={AuraColors.accentOrange} size={36} />
               ) : (
                 <Mic color={AuraColors.white} size={36} />
               )}
@@ -535,9 +535,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'center',
     shadowColor: AuraColors.accentOrange,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  mainMicButtonExpanded: {
+    backgroundColor: AuraColors.white,
   },
   fanButton: {
     position: 'absolute',
@@ -565,9 +568,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     position: 'relative',
     shadowColor: AuraColors.accentOrange,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.8,
-    shadowRadius: 24,
-    elevation: 12,
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 8,
   },
   fanButtonGlow: {
     position: 'absolute',
@@ -577,11 +580,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     bottom: -8,
     borderRadius: 38,
     backgroundColor: AuraColors.accentOrange,
-    opacity: 0.3,
+    opacity: 0.2,
     shadowColor: AuraColors.accentOrange,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 20,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
   },
   fanButtonLabel: {
     marginTop: 8,
