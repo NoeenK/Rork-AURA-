@@ -36,6 +36,20 @@ export default function AnalyticsScreen() {
     try {
       const totalEntries = entries.length;
       
+      if (totalEntries === 0) {
+        setAnalytics({
+          totalEntries: 0,
+          averageEntriesPerWeek: 0,
+          longestStreak: 0,
+          currentStreak: 0,
+          topEmotions: [],
+          topTopics: [],
+          insights: '',
+        });
+        setIsLoading(false);
+        return;
+      }
+      
       const sortedEntries = [...entries].sort((a, b) => a.timestamp - b.timestamp);
       let currentStreak = 0;
       let longestStreak = 0;
