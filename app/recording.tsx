@@ -90,7 +90,7 @@ export default function RecordingScreen() {
     startRecording();
     return () => {
       if (recording) {
-        recording.stopAndUnloadAsync();
+        recording.stopAndUnloadAsync().catch(console.error);
       }
       if (durationInterval.current) {
         clearInterval(durationInterval.current);
@@ -98,6 +98,9 @@ export default function RecordingScreen() {
       if (transcriptionInterval.current) {
         clearInterval(transcriptionInterval.current);
       }
+      Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+      }).catch(console.error);
     };
   }, []);
 
@@ -126,6 +129,11 @@ export default function RecordingScreen() {
 
   const startRecording = async () => {
     try {
+      if (recording) {
+        await recording.stopAndUnloadAsync();
+        setRecording(null);
+      }
+
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
