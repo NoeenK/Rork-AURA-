@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Animated, Platform, ScrollView, PanResponder } from 'react-native';
 import * as Font from 'expo-font';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Mic, Calendar, Settings, Brain, TrendingUp, Target, Zap } from 'lucide-react-native';
+import { Mic, Calendar, Settings, Brain, TrendingUp, Target, Zap, X, BookOpen, Sparkles } from 'lucide-react-native';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,9 +13,15 @@ export default function MainScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const [fontLoaded, setFontLoaded] = useState(false);
+  const [menuExpanded, setMenuExpanded] = useState(false);
   
   const leftGlowAnim = useRef(new Animated.Value(0.3)).current;
   const rightGlowAnim = useRef(new Animated.Value(0.3)).current;
+  
+  const leftButtonAnim = useRef(new Animated.Value(0)).current;
+  const centerButtonAnim = useRef(new Animated.Value(0)).current;
+  const rightButtonAnim = useRef(new Animated.Value(0)).current;
+  const mainButtonRotation = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     async function loadFont() {
@@ -66,11 +72,52 @@ export default function MainScreen() {
     })
   ).current;
 
-  const handleRecording = () => {
+  const toggleMenu = () => {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    router.push('/recording');
+    
+    const toValue = menuExpanded ? 0 : 1;
+    setMenuExpanded(!menuExpanded);
+    
+    Animated.parallel([
+      Animated.spring(leftButtonAnim, {
+        toValue,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+      Animated.spring(centerButtonAnim, {
+        toValue,
+        delay: 50,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+      Animated.spring(rightButtonAnim, {
+        toValue,
+        delay: 100,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+      Animated.spring(mainButtonRotation, {
+        toValue,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const handleNavigation = (route: string) => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    toggleMenu();
+    setTimeout(() => {
+      router.push(route as any);
+    }, 200);
   };
 
   const handleCalendar = () => {
@@ -216,13 +263,138 @@ export default function MainScreen() {
         </ScrollView>
 
         <View style={[styles.buttonContainer, { paddingBottom: insets.bottom + 40 }]}>
-          <TouchableOpacity
-            style={styles.mainMicButton}
-            onPress={handleRecording}
-            activeOpacity={0.8}
+          <Animated.View
+            style={[
+              styles.fanButton,
+              styles.leftButton,
+              {
+                opacity: leftButtonAnim,
+                transform: [
+                  {
+                    translateX: leftButtonAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -90],
+                    }),
+                  },
+                  {
+                    translateY: leftButtonAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -50],
+                    }),
+                  },
+                  {
+                    scale: leftButtonAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
           >
-            <Mic color={AuraColors.white} size={36} />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.fanButtonInner}
+              onPress={() => handleNavigation('/journal')}
+              activeOpacity={0.8}
+            >
+              <BookOpen color={AuraColors.white} size={24} />
+            </TouchableOpacity>
+          </Animated.View>
+
+          <Animated.View
+            style={[
+              styles.fanButton,
+              styles.centerButton,
+              {
+                opacity: centerButtonAnim,
+                transform: [
+                  {
+                    translateY: centerButtonAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -85],
+                    }),
+                  },
+                  {
+                    scale: centerButtonAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.fanButtonInner}
+              onPress={() => handleNavigation('/recording')}
+              activeOpacity={0.8}
+            >
+              <Mic color={AuraColors.white} size={24} />
+            </TouchableOpacity>
+          </Animated.View>
+
+          <Animated.View
+            style={[
+              styles.fanButton,
+              styles.rightButton,
+              {
+                opacity: rightButtonAnim,
+                transform: [
+                  {
+                    translateX: rightButtonAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 90],
+                    }),
+                  },
+                  {
+                    translateY: rightButtonAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -50],
+                    }),
+                  },
+                  {
+                    scale: rightButtonAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.fanButtonInner}
+              onPress={() => handleNavigation('/ask-aura')}
+              activeOpacity={0.8}
+            >
+              <Sparkles color={AuraColors.white} size={24} />
+            </TouchableOpacity>
+          </Animated.View>
+
+          <Animated.View
+            style={{
+              transform: [
+                {
+                  rotate: mainButtonRotation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0deg', '45deg'],
+                  }),
+                },
+              ],
+            }}
+          >
+            <TouchableOpacity
+              style={styles.mainMicButton}
+              onPress={toggleMenu}
+              activeOpacity={0.8}
+            >
+              {menuExpanded ? (
+                <X color={AuraColors.white} size={36} />
+              ) : (
+                <Mic color={AuraColors.white} size={36} />
+              )}
+            </TouchableOpacity>
+          </Animated.View>
         </View>
       </View>
     </View>
@@ -336,6 +508,32 @@ const createStyles = (colors: any) => StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 16,
+    elevation: 8,
+  },
+  fanButton: {
+    position: 'absolute',
+    zIndex: 10,
+  },
+  leftButton: {
+    bottom: 0,
+  },
+  centerButton: {
+    bottom: 0,
+  },
+  rightButton: {
+    bottom: 0,
+  },
+  fanButtonInner: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: AuraColors.accentOrange,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: AuraColors.accentOrange,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
     elevation: 8,
   },
   leftGlow: {
