@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 
 const SONIOX_API_KEY = '14f5b7c577d9b2c6f1c29351700ec4c9f233684dfdf27f67909a32262c896bde';
-const SONIOX_WEBSOCKET_URL = 'wss://api.soniox.com/transcribe-websocket';
+const SONIOX_WEBSOCKET_URL = 'wss://stt-rt.soniox.com/transcribe-websocket';
 
 export interface TranscriptionCallback {
   onTranscript: (text: string, isFinal: boolean, speaker?: string) => void;
@@ -34,10 +34,12 @@ export class SonioxRealtimeTranscription {
         this.isConnected = true;
         
         this.ws?.send(JSON.stringify({
-          include_nonfinal: true,
-          enable_speaker_identification: true,
-          enable_streaming: true,
-          model: 'en_v2',
+          api_key: SONIOX_API_KEY,
+          model: 'stt-rt-preview',
+          audio_format: 'pcm_s16le',
+          sample_rate: 16000,
+          num_channels: 1,
+          enable_speaker_diarization: true,
         }));
       };
 
@@ -46,18 +48,16 @@ export class SonioxRealtimeTranscription {
           const data = JSON.parse(event.data);
           console.log('Received message from Soniox:', data);
 
-          if (data.status === 'success') {
-            if (data.fw_final) {
-              const text = data.words?.map((w: any) => w.text).join(' ') || '';
-              const speaker = data.speaker || undefined;
-              this.callbacks?.onTranscript(text, true, speaker);
-            } else if (data.words && data.words.length > 0) {
-              const text = data.words.map((w: any) => w.text).join(' ');
-              const speaker = data.speaker || undefined;
-              this.callbacks?.onTranscript(text, false, speaker);
-            }
-          } else if (data.status === 'error') {
+          if (data.error_code) {
             this.callbacks?.onError(new Error(data.error_message || 'Unknown error'));
+            return;
+          }
+
+          if (data.tokens && data.tokens.length > 0) {
+            const hasFinal = data.tokens.some((t: any) => t.is_final);
+            const text = data.tokens.map((t: any) => t.text).join(' ');
+            const speaker = data.tokens[0]?.speaker || undefined;
+            this.callbacks?.onTranscript(text, hasFinal, speaker);
           }
         } catch (error) {
           console.error('Error parsing Soniox message:', error);
@@ -119,105 +119,132 @@ export async function transcribeAudioFile(uri: string): Promise<{
   transcript: string;
   speakers: SpeakerSegment[];
 }> {
-  try {
-    console.log('Transcribing audio file with Soniox:', uri);
-    
-    const formData = new FormData();
-    
-    if (Platform.OS === 'web') {
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      formData.append('audio', blob, 'recording.webm');
-    } else {
-      const uriParts = uri.split('.');
-      const fileType = uriParts[uriParts.length - 1];
+  return new Promise(async (resolve, reject) => {
+    try {
+      console.log('Transcribing audio file with Soniox via WebSocket:', uri);
       
-      const audioFile = {
-        uri,
-        name: `recording.${fileType}`,
-        type: `audio/${fileType}`,
-      } as any;
+      let audioBlob: Blob;
+      let audioFormat = 'auto';
       
-      formData.append('audio', audioFile);
-    }
-
-    formData.append('model', 'en_v2');
-    formData.append('enable_speaker_identification', 'true');
-    formData.append('enable_global_speaker_diarization', 'true');
-
-    console.log('Sending request to Soniox API...');
-    console.log('API Key:', SONIOX_API_KEY.substring(0, 8) + '...');
-    
-    const response = await fetch(`https://api.soniox.com/transcribe-async?api_key=${SONIOX_API_KEY}`, {
-      method: 'POST',
-      body: formData,
-    }).catch(err => {
-      console.error('Fetch error:', err);
-      throw new Error('Network request failed: ' + err.message);
-    });
-
-    console.log('Response status:', response.status);
-    console.log('Response headers:', JSON.stringify(Array.from(response.headers.entries())));
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Error response:', errorText);
-      console.error('Full error details:', { status: response.status, statusText: response.statusText });
-      throw new Error(`Transcription failed: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-
-    const responseText = await response.text();
-    console.log('Raw response:', responseText);
-    
-    const data = JSON.parse(responseText);
-    console.log('Transcription result:', JSON.stringify(data, null, 2));
-    
-    const speakers: SpeakerSegment[] = [];
-    let fullTranscript = '';
-    
-    if (data.words && Array.isArray(data.words)) {
-      let currentSpeaker = '';
-      let currentText = '';
-      
-      data.words.forEach((word: any) => {
-        const speaker = word.speaker || 'Speaker';
-        const text = word.text || '';
-        
-        if (speaker !== currentSpeaker && currentText) {
-          speakers.push({
-            speaker: currentSpeaker,
-            text: currentText.trim(),
-          });
-          currentText = '';
-        }
-        
-        currentSpeaker = speaker;
-        currentText += (currentText ? ' ' : '') + text;
-        fullTranscript += (fullTranscript ? ' ' : '') + text;
-      });
-      
-      if (currentText) {
-        speakers.push({
-          speaker: currentSpeaker,
-          text: currentText.trim(),
-        });
+      if (Platform.OS === 'web') {
+        const response = await fetch(uri);
+        audioBlob = await response.blob();
+        audioFormat = audioBlob.type.includes('webm') ? 'webm' : 'auto';
+      } else {
+        const response = await fetch(uri);
+        audioBlob = await response.blob();
+        const fileType = uri.split('.').pop()?.toLowerCase() || '';
+        if (fileType === 'm4a') audioFormat = 'm4a';
+        else if (fileType === 'wav') audioFormat = 'wav';
+        else if (fileType === 'mp3') audioFormat = 'mp3';
       }
-    } else if (data.transcript) {
-      fullTranscript = data.transcript;
-    } else if (data.result && data.result.transcript) {
-      fullTranscript = data.result.transcript;
-    } else if (data.text) {
-      fullTranscript = data.text;
+
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      console.log('Audio file loaded, size:', arrayBuffer.byteLength, 'format:', audioFormat);
+
+      const ws = new WebSocket(SONIOX_WEBSOCKET_URL);
+      const speakers: SpeakerSegment[] = [];
+      let fullTranscript = '';
+      const tokens: any[] = [];
+
+      ws.onopen = () => {
+        console.log('WebSocket connected for file transcription');
+        
+        ws.send(JSON.stringify({
+          api_key: SONIOX_API_KEY,
+          model: 'stt-rt-preview',
+          audio_format: audioFormat,
+          enable_speaker_diarization: true,
+        }));
+
+        console.log('Sending audio data...');
+        ws.send(arrayBuffer);
+        
+        console.log('Sending empty frame to finish...');
+        ws.send(new ArrayBuffer(0));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('Received from Soniox:', data);
+
+          if (data.error_code) {
+            ws.close();
+            reject(new Error(data.error_message || 'Transcription error'));
+            return;
+          }
+
+          if (data.tokens && data.tokens.length > 0) {
+            tokens.push(...data.tokens);
+          }
+
+          if (data.finished) {
+            console.log('Transcription finished, processing tokens...');
+            
+            let currentSpeaker = '';
+            let currentText = '';
+            
+            tokens.forEach((token: any) => {
+              if (!token.is_final) return;
+              
+              const speaker = token.speaker || 'Speaker 1';
+              const text = token.text || '';
+              
+              if (speaker !== currentSpeaker && currentText) {
+                speakers.push({
+                  speaker: currentSpeaker,
+                  text: currentText.trim(),
+                  startTime: token.start_ms,
+                  endTime: token.end_ms,
+                });
+                currentText = '';
+              }
+              
+              currentSpeaker = speaker;
+              currentText += (currentText ? ' ' : '') + text;
+              fullTranscript += (fullTranscript ? ' ' : '') + text;
+            });
+            
+            if (currentText) {
+              speakers.push({
+                speaker: currentSpeaker,
+                text: currentText.trim(),
+              });
+            }
+            
+            ws.close();
+            resolve({
+              transcript: fullTranscript || 'No transcription available',
+              speakers: speakers.length > 0 ? speakers : [{ speaker: 'Speaker 1', text: fullTranscript }],
+            });
+          }
+        } catch (error) {
+          console.error('Error parsing message:', error);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        reject(new Error('WebSocket connection error'));
+      };
+
+      ws.onclose = () => {
+        console.log('WebSocket closed');
+      };
+
+      setTimeout(() => {
+        if (ws.readyState !== WebSocket.CLOSED) {
+          ws.close();
+          reject(new Error('Transcription timeout'));
+        }
+      }, 120000);
+      
+    } catch (error) {
+      console.error('Transcription error:', error);
+      reject(error);
     }
-    
-    return {
-      transcript: fullTranscript || 'No transcription available',
-      speakers: speakers.length > 0 ? speakers : [{ speaker: 'Speaker', text: fullTranscript }],
-    };
-  } catch (error) {
-    console.error('Transcription error:', error);
-    throw error;
-  }
+  });
 }
 
 export async function transcribeAudioChunk(uri: string): Promise<string> {
