@@ -270,7 +270,9 @@ export default function RecordingScreen() {
       }
       
       if (sonioxTranscription.current) {
+        console.log('Disconnecting Soniox and flushing final tokens...');
         sonioxTranscription.current.disconnect();
+        await new Promise(resolve => setTimeout(resolve, 500));
         sonioxTranscription.current = null;
       }
       
@@ -287,8 +289,11 @@ export default function RecordingScreen() {
       if (uri) {
         const fullTranscript = finalTokens.map(t => t.text).join(' ').replace(/\s+/g, ' ').trim() || null;
         const finalSpeakers = speakersRef.current.length > 0 ? speakersRef.current : undefined;
-        console.log('Processing transcription before navigating back...');
+        console.log('Final transcript collected:', fullTranscript?.slice(0, 100));
+        console.log('Final speakers:', finalSpeakers);
+        console.log('Processing and generating summary...');
         await transcribeAndSaveAudio(uri, fullTranscript, finalSpeakers);
+        console.log('Summary generation complete, navigating back...');
       }
 
       router.back();
@@ -304,31 +309,39 @@ export default function RecordingScreen() {
       let text = existingTranscript;
       let speakerSegments = existingSpeakers;
       
-      if (!text || text === 'Listening...' || text === 'Transcription unavailable') {
-        console.log('Transcribing full audio with Soniox...');
+      if (!text || text.length === 0 || text === 'Listening...' || text === 'Transcription unavailable') {
+        console.log('No real-time transcript available, transcribing full audio with Soniox...');
         const result = await transcribeAudioFile(uri);
         text = result.transcript;
         speakerSegments = result.speakers;
-        console.log('Transcription completed:', text.slice(0, 100));
+        console.log('Full audio transcription completed:', text.slice(0, 100));
         console.log('Speaker segments:', speakerSegments);
       } else {
         console.log('Using accumulated real-time transcription with speakers');
+        console.log('Transcript length:', text.length, 'characters');
+        console.log('Speakers:', speakerSegments);
       }
       
-      console.log('Generating AI summary...');
+      if (!text || text.length === 0) {
+        console.error('No transcript available, cannot generate summary');
+        text = 'No transcript available';
+      }
+      
+      console.log('=== Generating AI summary ===');
       const summary = await generateSummary(text, speakerSegments);
-      console.log('Summary generated:', summary);
+      console.log('Summary generated:', summary.slice(0, 100));
       
-      console.log('Generating AURA summary...');
+      console.log('=== Generating AURA summary ===');
       const auraSummary = await generateAuraSummary(text, speakerSegments);
-      console.log('AURA summary generated:', auraSummary);
+      console.log('AURA summary generated:', JSON.stringify(auraSummary).slice(0, 100));
       
-      console.log('Extracting calendar events...');
+      console.log('=== Extracting calendar events ===');
       const calendarEvents = await extractCalendarEvents(text);
-      console.log('Calendar events extracted:', calendarEvents);
+      console.log('Calendar events extracted:', calendarEvents.length, 'events');
       
       const title = text.slice(0, 50) + (text.length > 50 ? '...' : '');
 
+      console.log('=== Adding entry to journal ===');
       addEntry({
         title,
         audioUri: uri,
@@ -339,12 +352,32 @@ export default function RecordingScreen() {
         date: new Date().toLocaleString(),
         duration: recordingDuration,
       });
+      console.log('Journal entry added successfully');
 
       if (Platform.OS !== 'web') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (error) {
-      console.error('Transcription error:', error);
+      console.error('Transcription/Summary error:', error);
+      
+      const fallbackText = existingTranscript || 'No transcript available';
+      const title = fallbackText.slice(0, 50) + (fallbackText.length > 50 ? '...' : '');
+      
+      console.log('Adding fallback entry to journal...');
+      addEntry({
+        title,
+        audioUri: uri,
+        transcript: fallbackText,
+        summary: 'Recording from ' + new Date().toLocaleDateString(),
+        auraSummary: {
+          overview: 'Recording captured on ' + new Date().toLocaleDateString(),
+          tasks: [],
+        },
+        calendarEvents: [],
+        date: new Date().toLocaleString(),
+        duration: recordingDuration,
+      });
+      console.log('Fallback entry added');
     }
   };
 
