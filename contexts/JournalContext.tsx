@@ -1,6 +1,6 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useCallback, useMemo } from 'react';
-import type { CalendarEvent, AuraSummary } from '@/lib/soniox-transcription';
+import type { CalendarEvent, AuraSummary } from '@/lib/openai-transcription';
 
 export interface JournalEntry {
   id: string;
