@@ -156,12 +156,18 @@ export async function transcribeAudioFile(uri: string): Promise<{
     };
 
     console.log('Sending request to Soniox API...');
+    
     const response = await fetch(SONIOX_API_URL, {
       method: 'POST',
+      mode: 'cors',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
       body: JSON.stringify(requestBody),
+    }).catch(err => {
+      console.error('Fetch error:', err);
+      throw new Error('Network request failed: ' + err.message);
     });
 
     console.log('Response status:', response.status);

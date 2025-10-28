@@ -421,7 +421,8 @@ export default function MainScreen() {
                 style={[
                   styles.circleOptionSmall,
                   {
-                    left: -100,
+                    bottom: 60,
+                    left: -70,
                     transform: [{ scale: circleScales[0] }],
                     opacity: circleOpacities[0],
                   },
@@ -441,6 +442,7 @@ export default function MainScreen() {
                 style={[
                   styles.circleOptionSmall,
                   {
+                    bottom: 80,
                     transform: [{ scale: circleScales[1] }],
                     opacity: circleOpacities[1],
                   },
@@ -460,7 +462,8 @@ export default function MainScreen() {
                 style={[
                   styles.circleOptionSmall,
                   {
-                    right: -100,
+                    bottom: 60,
+                    right: -70,
                     transform: [{ scale: circleScales[2] }],
                     opacity: circleOpacities[2],
                   },
@@ -626,8 +629,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'center',
   },
   circleContainer: {
+    position: 'relative',
+    width: 300,
+    height: 300,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
   },
   circleOption: {
     position: 'absolute',
