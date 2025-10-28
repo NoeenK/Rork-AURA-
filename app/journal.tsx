@@ -14,6 +14,7 @@ export default function JournalScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { entries } = useJournal();
+  const [previousEntriesLength, setPreviousEntriesLength] = useState(entries.length);
   const [selectedFullEntry, setSelectedFullEntry] = useState<any | null>(null);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -23,6 +24,9 @@ export default function JournalScreen() {
   const [showExportOptionsMenu, setShowExportOptionsMenu] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const [showNewEntryPopup, setShowNewEntryPopup] = useState(false);
+  const [newEntryId, setNewEntryId] = useState<string | null>(null);
+  const popupAnim = useRef(new Animated.Value(0)).current;
   
   useEffect(() => {
     if (selectedFullEntry && selectedFullEntry.audioUri) {
@@ -34,6 +38,32 @@ export default function JournalScreen() {
       }
     };
   }, [selectedFullEntry]);
+
+  useEffect(() => {
+    if (entries.length > previousEntriesLength) {
+      const latestEntry = entries[0];
+      setNewEntryId(latestEntry.id);
+      setShowNewEntryPopup(true);
+      
+      Animated.sequence([
+        Animated.timing(popupAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.delay(3000),
+        Animated.timing(popupAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setShowNewEntryPopup(false);
+        setNewEntryId(null);
+      });
+    }
+    setPreviousEntriesLength(entries.length);
+  }, [entries.length]);
 
   const loadSound = async () => {
     try {
@@ -220,6 +250,19 @@ export default function JournalScreen() {
     return Math.floor(currentSecond / secondsPerWord);
   };
 
+  const handleNewEntryPress = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    const entry = entries.find(e => e.id === newEntryId);
+    if (entry) {
+      handleEntryPress(entry);
+      popupAnim.setValue(0);
+      setShowNewEntryPopup(false);
+      setNewEntryId(null);
+    }
+  };
+
   const styles = createStyles(colors);
   
   return (
@@ -284,6 +327,41 @@ export default function JournalScreen() {
             ))
           )}
         </ScrollView>
+        
+        {showNewEntryPopup && (
+          <Animated.View
+            style={[
+              styles.newEntryPopup,
+              {
+                opacity: popupAnim,
+                transform: [
+                  {
+                    translateY: popupAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-20, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <TouchableOpacity
+              onPress={handleNewEntryPress}
+              activeOpacity={0.9}
+              style={styles.newEntryPopupContent}
+            >
+              <LinearGradient
+                colors={[AuraColors.accentOrange, '#FF8C42']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.newEntryPopupGradient}
+              >
+                <Play color={AuraColors.white} size={18} fill={AuraColors.white} />
+                <Text style={styles.newEntryPopupText}>New Entry</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </Animated.View>
+        )}
       </View>
 
       {selectedFullEntry && (
@@ -1048,9 +1126,9 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   staticWaveBar: {
     width: 2,
-    backgroundColor: colors.textSecondary,
+    backgroundColor: '#999',
     borderRadius: 1,
-    opacity: 0.3,
+    opacity: 1,
   },
   gradientOverlay: {
     position: 'absolute',
@@ -1072,7 +1150,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   gradientWaveBar: {
     width: 2,
-    backgroundColor: AuraColors.white,
+    backgroundColor: '#FFB84D',
     borderRadius: 1,
   },
   timeContainerBottom: {
@@ -1158,5 +1236,35 @@ const createStyles = (colors: any) => StyleSheet.create({
     height: 16,
     backgroundColor: AuraColors.white,
     borderRadius: 1.5,
+  },
+  newEntryPopup: {
+    position: 'absolute',
+    top: 80,
+    left: 24,
+    right: 24,
+    zIndex: 1000,
+  },
+  newEntryPopupContent: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: AuraColors.accentOrange,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  newEntryPopupGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+  },
+  newEntryPopupText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: AuraColors.white,
+    letterSpacing: 0.5,
   },
 });
