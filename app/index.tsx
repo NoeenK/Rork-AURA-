@@ -50,6 +50,19 @@ export default function MainScreen() {
           playsInSilentModeIOS: true,
         });
       }
+      
+      if (Platform.OS === 'ios') {
+        try {
+          if (typeof (global as any).SFSpeechRecognizer !== 'undefined') {
+            const speechPermission = await (global as any).SFSpeechRecognizer.requestAuthorization();
+            console.log('iOS Speech Recognition permission:', speechPermission);
+          } else if (typeof (global as any).webkitSpeechRecognition !== 'undefined') {
+            console.log('Web Speech API available');
+          }
+        } catch (error) {
+          console.log('Speech recognition permission request not available:', error);
+        }
+      }
     } catch (error) {
       console.error('Error requesting permissions:', error);
     }

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Platform, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -7,6 +7,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useJournal } from '@/contexts/JournalContext';
 import { AuraColors } from '@/constants/colors';
+import * as Calendar from 'expo-calendar';
+import * as Haptics from 'expo-haptics';
 
 export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
@@ -14,6 +16,86 @@ export default function CalendarScreen() {
   const { entries, calendarEvents } = useJournal();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [calendarPermission, setCalendarPermission] = useState(false);
+
+  const requestCalendarPermissions = async () => {
+    try {
+      const { status } = await Calendar.requestCalendarPermissionsAsync();
+      setCalendarPermission(status === 'granted');
+      return status === 'granted';
+    } catch (error) {
+      console.error('Error requesting calendar permissions:', error);
+      return false;
+    }
+  };
+
+  const convertTo12Hour = (time24: string) => {
+    if (!time24) return '';
+    const [hours, minutes] = time24.split(':').map(Number);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const hours12 = hours % 12 || 12;
+    return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
+  };
+
+  const exportToNativeCalendar = async (event: any) => {
+    try {
+      if (Platform.OS !== 'web') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+
+      const hasPermission = calendarPermission || await requestCalendarPermissions();
+      
+      if (!hasPermission) {
+        Alert.alert(
+          'Permission Required',
+          'Calendar access is required to export events. Please enable it in your device settings.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+      const defaultCalendar = calendars.find(cal => cal.isPrimary) || calendars[0];
+
+      if (!defaultCalendar) {
+        Alert.alert('Error', 'No calendar found on your device');
+        return;
+      }
+
+      const eventDate = new Date(event.date);
+      let startDate = eventDate;
+      let endDate = new Date(eventDate.getTime() + 60 * 60 * 1000);
+
+      if (event.time) {
+        const [hours, minutes] = event.time.split(':').map(Number);
+        startDate.setHours(hours, minutes, 0, 0);
+        endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+      }
+
+      const eventId = await Calendar.createEventAsync(defaultCalendar.id, {
+        title: event.title,
+        startDate,
+        endDate,
+        notes: event.description || '',
+        timeZone: 'UTC',
+      });
+
+      console.log('Event created in native calendar:', eventId);
+
+      Alert.alert(
+        'Success',
+        'Event added to your calendar!',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('Error exporting to native calendar:', error);
+      Alert.alert(
+        'Error',
+        'Failed to add event to calendar. Please try again.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
 
   const styles = createStyles(colors);
 
@@ -98,7 +180,7 @@ export default function CalendarScreen() {
         >
           <View style={[styles.dayContent, isToday && styles.today, isSelected && styles.selected]}>
             <Text style={[styles.dayText, (isToday || isSelected) && styles.todayText]}>{day}</Text>
-            {hasEvents && (
+            {hasEvents && !isToday && !isSelected && (
               <View style={styles.eventDotIndicator} />
             )}
           </View>
@@ -176,22 +258,40 @@ export default function CalendarScreen() {
           
           {selectedDateEvents.extractedEvents.length > 0 ? (
             <View style={styles.eventSection}>
-              {selectedDateEvents.extractedEvents.map((event, idx) => (
-                <LinearGradient
-                  key={`extracted-${idx}`}
-                  colors={['#FF8C42', '#FFA500']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.eventCard}
-                >
-                  <View style={styles.eventCardContent}>
-                    <Text style={styles.eventTitle} numberOfLines={1}>{event.title}</Text>
-                    {event.time && (
-                      <Text style={styles.eventTime}>{event.time}</Text>
-                    )}
+              {selectedDateEvents.extractedEvents.map((event, idx) => {
+                const eventDate = new Date(event.date);
+                const dayName = eventDate.toLocaleDateString('en-US', { weekday: 'long' });
+                const dateStr = eventDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                const time12 = event.time ? convertTo12Hour(event.time) : null;
+
+                return (
+                  <View key={`extracted-${idx}`} style={styles.eventCardWrapper}>
+                    <LinearGradient
+                      colors={['#FF8C42', '#FFA500']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.eventCard}
+                    >
+                      <View style={styles.eventCardContent}>
+                        <View style={styles.eventInfo}>
+                          <Text style={styles.eventTitle} numberOfLines={1}>{event.title}</Text>
+                          <Text style={styles.eventDateText}>{dayName}, {dateStr}</Text>
+                          {time12 && (
+                            <Text style={styles.eventTime}>{time12}</Text>
+                          )}
+                        </View>
+                      </View>
+                    </LinearGradient>
+                    <TouchableOpacity
+                      style={styles.exportButton}
+                      onPress={() => exportToNativeCalendar(event)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.exportButtonText}>Add to Apple Calendar</Text>
+                    </TouchableOpacity>
                   </View>
-                </LinearGradient>
-              ))}
+                );
+              })}
             </View>
           ) : (
             <Text style={styles.noEventsText}>No events for this date</Text>
@@ -322,10 +422,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.text,
     marginBottom: 16,
   },
+  eventCardWrapper: {
+    marginBottom: 16,
+  },
   eventCard: {
-    padding: 16,
+    padding: 20,
     borderRadius: 16,
-    marginBottom: 12,
+    marginBottom: 8,
     shadowColor: AuraColors.accentOrange,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -335,19 +438,41 @@ const createStyles = (colors: any) => StyleSheet.create({
   eventCardContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
-  eventTitle: {
-    fontSize: 16,
-    fontWeight: '700' as const,
-    color: AuraColors.white,
+  eventInfo: {
     flex: 1,
   },
-  eventTime: {
-    fontSize: 14,
-    fontWeight: '600' as const,
+  eventTitle: {
+    fontSize: 18,
+    fontWeight: '800' as const,
     color: AuraColors.white,
-    marginLeft: 12,
+    marginBottom: 6,
+  },
+  eventDateText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 4,
+  },
+  eventTime: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: AuraColors.white,
+  },
+  exportButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 140, 66, 0.5)',
+  },
+  exportButtonText: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: colors.text,
+    textAlign: 'center',
   },
   noEventsText: {
     fontSize: 16,
