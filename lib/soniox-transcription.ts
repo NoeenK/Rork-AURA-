@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 
 const SONIOX_API_KEY = '14f5b7c577d9b2c6f1c29351700ec4c9f233684dfdf27f67909a32262c896bde';
-const SONIOX_API_URL = 'https://api.soniox.com/transcribe';
+const SONIOX_API_URL = 'https://api.soniox.com/transcribe-async';
 const SONIOX_WEBSOCKET_URL = 'wss://api.soniox.com/transcribe-websocket';
 const OPENAI_API_KEY = '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';
 
@@ -28,18 +28,18 @@ export class SonioxRealtimeTranscription {
     try {
       console.log('Connecting to Soniox WebSocket API...');
       
-      this.ws = new WebSocket(SONIOX_WEBSOCKET_URL);
+      const wsUrl = SONIOX_WEBSOCKET_URL + '?api_key=' + SONIOX_API_KEY;
+      this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
         console.log('Connected to Soniox WebSocket API');
         this.isConnected = true;
         
         this.ws?.send(JSON.stringify({
-          api_key: SONIOX_API_KEY,
           include_nonfinal: true,
           enable_speaker_identification: true,
           enable_streaming: true,
-          model: 'en_v2_medical',
+          model: 'en_v2',
         }));
       };
 
@@ -147,8 +147,7 @@ export async function transcribeAudioFile(uri: string): Promise<{
     }
 
     const requestBody = {
-      api_key: SONIOX_API_KEY,
-      audio: audioBase64,
+      audio: [audioBase64],
       model: 'en_v2',
       enable_speaker_identification: true,
       enable_global_speaker_diarization: true,
@@ -159,10 +158,10 @@ export async function transcribeAudioFile(uri: string): Promise<{
     
     const response = await fetch(SONIOX_API_URL, {
       method: 'POST',
-      mode: 'cors',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'Authorization': 'Bearer ' + SONIOX_API_KEY,
       },
       body: JSON.stringify(requestBody),
     }).catch(err => {
@@ -215,6 +214,8 @@ export async function transcribeAudioFile(uri: string): Promise<{
       fullTranscript = data.transcript;
     } else if (data.result && data.result.transcript) {
       fullTranscript = data.result.transcript;
+    } else if (data.text) {
+      fullTranscript = data.text;
     }
     
     return {

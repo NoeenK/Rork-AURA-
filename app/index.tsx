@@ -311,7 +311,7 @@ export default function MainScreen() {
         <View style={[styles.buttonContainer, { paddingBottom: insets.bottom + 40 }]}>
           <Animated.View
             style={[
-              styles.mainMicButton,
+              showRecordingPopup ? styles.mainMicButtonHighlighted : styles.mainMicButton,
               {
                 transform: [
                   { scale: mainButtonScale },
@@ -421,8 +421,8 @@ export default function MainScreen() {
                 style={[
                   styles.circleOptionSmall,
                   {
-                    bottom: 60,
-                    left: -70,
+                    bottom: 20,
+                    left: -50,
                     transform: [{ scale: circleScales[0] }],
                     opacity: circleOpacities[0],
                   },
@@ -442,7 +442,7 @@ export default function MainScreen() {
                 style={[
                   styles.circleOptionSmall,
                   {
-                    bottom: 80,
+                    bottom: 35,
                     transform: [{ scale: circleScales[1] }],
                     opacity: circleOpacities[1],
                   },
@@ -462,8 +462,8 @@ export default function MainScreen() {
                 style={[
                   styles.circleOptionSmall,
                   {
-                    bottom: 60,
-                    right: -70,
+                    bottom: 20,
+                    right: -50,
                     transform: [{ scale: circleScales[2] }],
                     opacity: circleOpacities[2],
                   },
@@ -592,6 +592,19 @@ const createStyles = (colors: any) => StyleSheet.create({
     shadowOpacity: 0.7,
     shadowRadius: 28,
     elevation: 12,
+  },
+  mainMicButtonHighlighted: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 140, 66, 0.7)',
+    borderWidth: 3,
+    borderColor: AuraColors.accentOrange,
+    shadowColor: AuraColors.accentOrange,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 1,
+    shadowRadius: 32,
+    elevation: 16,
   },
   mainMicButtonInner: {
     width: '100%',
