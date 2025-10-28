@@ -2,11 +2,17 @@ import createContextHook from '@nkzw/create-context-hook';
 import { useState, useCallback, useMemo } from 'react';
 import type { CalendarEvent, AuraSummary } from '@/lib/soniox-transcription';
 
+export interface SpeakerSegment {
+  speaker?: string;
+  text: string;
+}
+
 export interface JournalEntry {
   id: string;
   title: string;
   audioUri: string;
   transcript: string;
+  transcriptWithSpeakers?: SpeakerSegment[];
   summary: string;
   auraSummary?: AuraSummary;
   calendarEvents?: CalendarEvent[];

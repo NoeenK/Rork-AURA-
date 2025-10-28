@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Platform, Modal, Animated, PanResponder, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Platform, Modal, Animated, PanResponder, ActivityIndicator, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Play, Pause, RotateCcw, RotateCw, MoreVertical, Download, FileText, ChevronLeft, ChevronRight, Calendar, MapPin, User } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -28,6 +28,8 @@ export default function JournalScreen() {
   const [checkedTodos, setCheckedTodos] = useState<Record<number, boolean>>({});
   const [generatedTodos, setGeneratedTodos] = useState<Record<string, string[]>>({});
   const [isGeneratingTodo, setIsGeneratingTodo] = useState(false);
+  const [editableSummary, setEditableSummary] = useState('');
+  const [editableTodos, setEditableTodos] = useState<string[]>([]);
   const tabContentOpacity = useRef(new Animated.Value(1)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
   const [showNewEntryPopup, setShowNewEntryPopup] = useState(false);
@@ -126,6 +128,9 @@ export default function JournalScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     setSelectedFullEntry(entry);
+    setEditableSummary(entry.auraSummary?.overview || entry.summary);
+    const todos = entry.auraSummary?.tasks || generatedTodos[entry.id] || [];
+    setEditableTodos(todos.map((t: any) => typeof t === 'string' ? t : t.task || String(t)));
   };
 
   const handlePlayPause = async () => {
@@ -502,7 +507,7 @@ ${selectedFullEntry.transcript}`;
                   <View style={styles.metadataRow}>
                     <Calendar color={colors.textSecondary} size={16} strokeWidth={2} />
                     <Text style={styles.metadataText}>
-                      {selectedFullEntry.date} || {new Date(selectedFullEntry.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })} || {selectedFullEntry.duration < 60 ? `${selectedFullEntry.duration}s` : `${Math.floor(selectedFullEntry.duration / 60)} min`}
+                      {selectedFullEntry.date} || {selectedFullEntry.duration < 60 ? `${selectedFullEntry.duration}s` : `${Math.floor(selectedFullEntry.duration / 60)} min`}
                     </Text>
                   </View>
                   {selectedFullEntry.location && (
@@ -515,35 +520,74 @@ ${selectedFullEntry.transcript}`;
                   )}
                 </View>
                 
-                <View style={styles.tabButtonContainer}>
-                  <TouchableOpacity 
-                    style={[styles.tabButton, selectedTab === 'summary' && styles.tabButtonActive]}
-                    onPress={() => handleTabPress('summary')}
-                    activeOpacity={0.7}
+                <View style={styles.tabButtonWrapper}>
+                  <LinearGradient
+                    colors={['rgba(255, 138, 0, 0.15)', 'rgba(255, 110, 64, 0.15)']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.tabButtonGradientBorder}
                   >
-                    <Text style={[styles.tabButtonText, selectedTab === 'summary' && styles.tabButtonTextActive]}>AI Summary</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.tabButton, selectedTab === 'todo' && styles.tabButtonActive]}
-                    onPress={() => handleTabPress('todo')}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.tabButtonText, selectedTab === 'todo' && styles.tabButtonTextActive]}>To-Do</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.tabButton, selectedTab === 'transcript' && styles.tabButtonActive]}
-                    onPress={() => handleTabPress('transcript')}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.tabButtonText, selectedTab === 'transcript' && styles.tabButtonTextActive]}>Transcription</Text>
-                  </TouchableOpacity>
+                    <View style={styles.tabButtonContainer}>
+                      <TouchableOpacity 
+                        style={[styles.tabButton, selectedTab === 'summary' && styles.tabButtonActive]}
+                        onPress={() => handleTabPress('summary')}
+                        activeOpacity={0.7}
+                      >
+                        {selectedTab === 'summary' && (
+                          <LinearGradient
+                            colors={['rgba(255, 138, 0, 0.25)', 'rgba(255, 110, 64, 0.25)']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={StyleSheet.absoluteFillObject}
+                          />
+                        )}
+                        <Text style={[styles.tabButtonText, selectedTab === 'summary' && styles.tabButtonTextActive]}>AI Summary</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={[styles.tabButton, selectedTab === 'todo' && styles.tabButtonActive]}
+                        onPress={() => handleTabPress('todo')}
+                        activeOpacity={0.7}
+                      >
+                        {selectedTab === 'todo' && (
+                          <LinearGradient
+                            colors={['rgba(255, 138, 0, 0.25)', 'rgba(255, 110, 64, 0.25)']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={StyleSheet.absoluteFillObject}
+                          />
+                        )}
+                        <Text style={[styles.tabButtonText, selectedTab === 'todo' && styles.tabButtonTextActive]}>To-Do</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={[styles.tabButton, selectedTab === 'transcript' && styles.tabButtonActive]}
+                        onPress={() => handleTabPress('transcript')}
+                        activeOpacity={0.7}
+                      >
+                        {selectedTab === 'transcript' && (
+                          <LinearGradient
+                            colors={['rgba(255, 138, 0, 0.25)', 'rgba(255, 110, 64, 0.25)']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={StyleSheet.absoluteFillObject}
+                          />
+                        )}
+                        <Text style={[styles.tabButtonText, selectedTab === 'transcript' && styles.tabButtonTextActive]}>Transcription</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </LinearGradient>
                 </View>
                 
-                {selectedTab === 'summary' && selectedFullEntry.auraSummary && (
+                {selectedTab === 'summary' && (
                   <View style={styles.auraSummarySection}>
                     <View style={styles.overviewSection}>
-                      <Text style={styles.overviewLabel}>Overview</Text>
-                      <Text style={styles.overviewText}>{selectedFullEntry.auraSummary.overview}</Text>
+                      <TextInput
+                        style={styles.editableText}
+                        value={editableSummary}
+                        onChangeText={setEditableSummary}
+                        multiline
+                        placeholder="No summary available"
+                        placeholderTextColor={colors.textSecondary}
+                      />
                     </View>
                   </View>
                 )}
@@ -556,19 +600,28 @@ ${selectedFullEntry.transcript}`;
                         <Text style={styles.loadingText}>Generating to-do list...</Text>
                       </View>
                     ) : (
-                      (selectedFullEntry.auraSummary?.tasks || generatedTodos[selectedFullEntry.id] || []).length > 0 ? (
-                        (selectedFullEntry.auraSummary?.tasks || generatedTodos[selectedFullEntry.id]).map((task: any, idx: number) => (
-                          <TouchableOpacity 
-                            key={idx} 
-                            style={styles.todoItem}
-                            onPress={() => handleTodoToggle(idx)}
-                            activeOpacity={0.7}
-                          >
-                            <View style={styles.todoBullet} />
-                            <Text style={[styles.todoText, checkedTodos[idx] && styles.todoTextChecked]}>
-                              {typeof task === 'string' ? task : task.task || String(task)}
-                            </Text>
-                          </TouchableOpacity>
+                      editableTodos.length > 0 ? (
+                        editableTodos.map((task: string, idx: number) => (
+                          <View key={idx} style={styles.todoItemContainer}>
+                            <TouchableOpacity 
+                              style={styles.todoCheckbox}
+                              onPress={() => handleTodoToggle(idx)}
+                              activeOpacity={0.7}
+                            >
+                              <View style={styles.todoBullet} />
+                            </TouchableOpacity>
+                            <TextInput
+                              style={[styles.editableTodoText, checkedTodos[idx] && styles.todoTextChecked]}
+                              value={task}
+                              onChangeText={(text) => {
+                                const newTodos = [...editableTodos];
+                                newTodos[idx] = text;
+                                setEditableTodos(newTodos);
+                              }}
+                              multiline
+                              placeholderTextColor={colors.textSecondary}
+                            />
+                          </View>
                         ))
                       ) : (
                         <Text style={styles.noTodoText}>No actionable items found in this recording.</Text>
@@ -579,22 +632,36 @@ ${selectedFullEntry.transcript}`;
                 
                 {selectedTab === 'transcript' && (
                   <View style={styles.transcriptContent}>
-                    <Text style={styles.fullTranscriptText}>
-                      {selectedFullEntry.transcript.split(' ').map((word: string, idx: number) => {
-                        const isCurrentWord = isPlaying && idx === getCurrentWord();
-                        return (
-                          <Text
-                            key={idx}
-                            style={[
-                              styles.transcriptWord,
-                              isCurrentWord && styles.highlightedWord,
-                            ]}
-                          >
-                            {word}{idx < selectedFullEntry.transcript.split(' ').length - 1 ? ' ' : ''}
-                          </Text>
-                        );
-                      })}
-                    </Text>
+                    {selectedFullEntry.transcriptWithSpeakers ? (
+                      selectedFullEntry.transcriptWithSpeakers.map((segment: any, segIdx: number) => (
+                        <View key={segIdx} style={styles.speakerSegment}>
+                          {segment.speaker && (
+                            <View style={styles.speakerTag}>
+                              <View style={styles.speakerDot} />
+                              <Text style={styles.speakerLabel}>Speaker {segment.speaker}</Text>
+                            </View>
+                          )}
+                          <Text style={styles.segmentText}>{segment.text}</Text>
+                        </View>
+                      ))
+                    ) : (
+                      <Text style={styles.fullTranscriptText}>
+                        {selectedFullEntry.transcript.split(' ').map((word: string, idx: number) => {
+                          const isCurrentWord = isPlaying && idx === getCurrentWord();
+                          return (
+                            <Text
+                              key={idx}
+                              style={[
+                                styles.transcriptWord,
+                                isCurrentWord && styles.highlightedWord,
+                              ]}
+                            >
+                              {word}{idx < selectedFullEntry.transcript.split(' ').length - 1 ? ' ' : ''}
+                            </Text>
+                          );
+                        })}
+                      </Text>
+                    )}
                   </View>
                 )}
               </View>
@@ -1008,7 +1075,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   entryMetadata: {
     gap: 10,
-    marginBottom: 4,
+    marginBottom: 20,
   },
   metadataRow: {
     flexDirection: 'row',
@@ -1021,38 +1088,40 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: '500' as const,
     flex: 1,
   },
+  tabButtonWrapper: {
+    marginBottom: 24,
+  },
+  tabButtonGradientBorder: {
+    borderRadius: 18,
+    padding: 2,
+  },
   tabButtonContainer: {
     flexDirection: 'row',
-    gap: 8,
-    marginTop: 20,
-    marginBottom: 24,
+    gap: 0,
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    overflow: 'hidden',
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    justifyContent: 'center',
+    borderRadius: 14,
+    overflow: 'hidden',
   },
   tabButtonActive: {
-    backgroundColor: AuraColors.white,
-    borderColor: AuraColors.white,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 138, 0, 0.3)',
   },
   tabButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600' as const,
     color: colors.textSecondary,
   },
   tabButtonTextActive: {
-    color: colors.background,
+    color: AuraColors.accentOrange,
     fontWeight: '700' as const,
   },
   playAudioButton: {
@@ -1168,6 +1237,65 @@ const createStyles = (colors: any) => StyleSheet.create({
   todoTextChecked: {
     textDecorationLine: 'line-through' as const,
     opacity: 0.5,
+  },
+  editableText: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: colors.text,
+    fontWeight: '500' as const,
+    padding: 0,
+    margin: 0,
+  },
+  todoItemContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+    gap: 12,
+  },
+  todoCheckbox: {
+    paddingTop: 8,
+  },
+  editableTodoText: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.text,
+    fontWeight: '500' as const,
+    padding: 0,
+    margin: 0,
+  },
+  speakerSegment: {
+    marginBottom: 20,
+  },
+  speakerTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255, 138, 0, 0.1)',
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  speakerDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: AuraColors.accentOrange,
+  },
+  speakerLabel: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: AuraColors.accentOrange,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+  },
+  segmentText: {
+    fontSize: 16,
+    lineHeight: 26,
+    color: colors.text,
+    fontWeight: '400' as const,
   },
   loadingContainer: {
     flexDirection: 'row',
