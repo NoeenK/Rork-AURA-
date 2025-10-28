@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Keyboard } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Keyboard, PanResponder, TouchableWithoutFeedback } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Mic, ArrowUp } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -24,6 +24,20 @@ export default function AskAuraScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const logoAnim = useRef(new Animated.Value(0)).current;
   const inputRef = useRef<TextInput>(null);
+  
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dx) > 20;
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dx > 100) {
+          router.back();
+        }
+      },
+    })
+  ).current;
 
   useEffect(() => {
     Animated.loop(
@@ -201,17 +215,18 @@ export default function AskAuraScreen() {
   const styles = createStyles(colors);
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={0}
-    >
-      <LinearGradient
-        colors={[colors.gradientStart, colors.gradientEnd]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-      />
+    <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
+      <KeyboardAvoidingView 
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+      >
+        <LinearGradient
+          colors={[colors.gradientStart, colors.gradientEnd]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFillObject}
+        />
       
       <View style={[styles.content, { paddingTop: insets.top + 16 }]}>
         <View style={styles.header}>
@@ -222,7 +237,7 @@ export default function AskAuraScreen() {
         </View>
         
         {messages.length === 0 ? (
-          <View style={styles.logoContainer}>
+          <View style={styles.logoContainer} {...panResponder.panHandlers}>
             <Animated.View 
               style={[
                 styles.logoWrapper,
@@ -232,23 +247,26 @@ export default function AskAuraScreen() {
                 }
               ]}
             >
-              <LinearGradient
-                colors={[AuraColors.accentOrange, '#FF8C42', '#FFA500']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.logoGradient}
-              >
-                <Text style={styles.logoText}>AURA</Text>
-              </LinearGradient>
+              <View style={styles.glassLogoContainer}>
+                <LinearGradient
+                  colors={[AuraColors.accentOrange, '#FF8C42', '#FFA500']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.logoGradient}
+                >
+                  <Text style={styles.logoText}>AURA</Text>
+                </LinearGradient>
+              </View>
             </Animated.View>
-            <Text style={styles.welcomeText}>Ask me anything about your thoughts</Text>
           </View>
         ) : (
-          <ScrollView
+          <View style={styles.messagesWrapper}>
+            <ScrollView
             ref={scrollViewRef}
             style={styles.messagesContainer}
             contentContainerStyle={[styles.messagesContent, { paddingBottom: insets.bottom + 140 }]}
             showsVerticalScrollIndicator={false}
+            {...panResponder.panHandlers}
           >
             {messages.map((message, index) => (
               <View
@@ -271,6 +289,7 @@ export default function AskAuraScreen() {
               </View>
             )}
           </ScrollView>
+          </View>
         )}
         
         <View style={[styles.inputContainer, { paddingBottom: insets.bottom + 16 }]}>
@@ -334,7 +353,8 @@ export default function AskAuraScreen() {
           </View>
         </View>
       </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -368,7 +388,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 40,
   },
   logoWrapper: {
-    marginBottom: 32,
     borderRadius: 100,
     overflow: 'hidden',
     shadowColor: AuraColors.accentOrange,
@@ -377,25 +396,32 @@ const createStyles = (colors: any) => StyleSheet.create({
     shadowRadius: 24,
     elevation: 12,
   },
+  glassLogoContainer: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 8,
+  },
   logoGradient: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
+    width: '100%',
+    height: '100%',
+    borderRadius: 70,
     alignItems: 'center',
     justifyContent: 'center',
   },
   logoText: {
-    fontSize: 48,
+    fontSize: 36,
     fontWeight: '900' as const,
     color: AuraColors.white,
-    letterSpacing: 4,
+    letterSpacing: 3,
   },
-  welcomeText: {
-    fontSize: 18,
-    fontWeight: '600' as const,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 26,
+  messagesWrapper: {
+    flex: 1,
   },
   messagesContainer: {
     flex: 1,
@@ -409,15 +435,17 @@ const createStyles = (colors: any) => StyleSheet.create({
     padding: 16,
     borderRadius: 20,
     maxWidth: '85%',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   userMessage: {
     alignSelf: 'flex-end',
-    backgroundColor: colors.card,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderBottomRightRadius: 4,
   },
   assistantMessage: {
     alignSelf: 'flex-start',
-    backgroundColor: colors.background,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderBottomLeftRadius: 4,
     borderLeftWidth: 3,
     borderLeftColor: AuraColors.accentOrange,
@@ -440,12 +468,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginVertical: 8,
   },
   inputContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     paddingTop: 16,
     paddingHorizontal: 24,
+    backgroundColor: 'transparent',
   },
   searchBarWrapper: {
     borderRadius: 28,

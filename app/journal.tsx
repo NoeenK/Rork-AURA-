@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Platform, Modal, Animated } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Platform, Modal, Animated, PanResponder } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Play, Pause, RotateCcw, RotateCw, MoreVertical, Download, FileText, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -27,6 +27,20 @@ export default function JournalScreen() {
   const [showNewEntryPopup, setShowNewEntryPopup] = useState(false);
   const [newEntryId, setNewEntryId] = useState<string | null>(null);
   const popupAnim = useRef(new Animated.Value(0)).current;
+  
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dx) > 20;
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dx < -100) {
+          router.back();
+        }
+      },
+    })
+  ).current;
   
   useEffect(() => {
     if (selectedFullEntry && selectedFullEntry.audioUri) {
@@ -266,7 +280,7 @@ export default function JournalScreen() {
   const styles = createStyles(colors);
   
   return (
-    <View style={styles.container}>
+    <View style={styles.container} {...panResponder.panHandlers}>
       <LinearGradient
         colors={[colors.gradientStart, colors.gradientEnd]}
         start={{ x: 0, y: 0 }}
@@ -716,7 +730,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     textAlign: 'center',
   },
   entryCard: {
-    backgroundColor: colors.card,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 20,
     padding: 20,
     marginBottom: 16,
@@ -727,6 +741,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     elevation: 5,
     borderLeftWidth: 4,
     borderLeftColor: AuraColors.accentOrange,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   entryHeader: {
     flexDirection: 'row',
