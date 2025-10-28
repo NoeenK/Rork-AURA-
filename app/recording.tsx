@@ -5,7 +5,7 @@ import { Square } from 'lucide-react-native';
 import { AuraColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
-import { transcribeAudioFile, generateSummary, generateAuraSummary, extractCalendarEvents, transcribeAudioChunk, SpeakerSegment, SonioxRealtimeTranscription, TranscriptionCallback } from '@/lib/soniox-transcription';
+import { transcribeAudioFile, generateSummary, generateAuraSummary, extractCalendarEvents, transcribeAudioChunk, SpeakerSegment, SonioxRealtimeTranscription, TranscriptionCallback, Token } from '@/lib/soniox-transcription';
 import * as Haptics from 'expo-haptics';
 import { useJournal } from '@/contexts/JournalContext';
 import { router } from 'expo-router';
@@ -27,6 +27,7 @@ export default function RecordingScreen() {
   const [speakers, setSpeakers] = useState<Map<string, string>>(new Map());
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const [isPaused, setIsPaused] = useState<boolean>(false);
+  const [tokens, setTokens] = useState<Token[]>([]);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const waveAnims = useRef(
@@ -244,6 +245,10 @@ export default function RecordingScreen() {
             console.error('Soniox transcription error:', error);
             setLiveTranscript('Transcription error. Please try again.');
           },
+          onTokens: (newTokens: Token[]) => {
+            console.log('Received tokens:', newTokens.length);
+            setTokens(newTokens);
+          },
         };
         
         await transcriptionService.connect(callbacks);
@@ -399,6 +404,77 @@ export default function RecordingScreen() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const getSpeakerColor = (speaker: string): string => {
+    const colors = ['#4A90E2', '#E24A90', '#90E24A', '#E2904A', '#904AE2', '#E2E24A'];
+    const speakerNum = parseInt(speaker.replace('Speaker ', '')) || 1;
+    return colors[(speakerNum - 1) % colors.length];
+  };
+
+  const renderTokenGroups = () => {
+    if (tokens.length === 0) return null;
+
+    const groups: { speaker: string; tokens: Token[] }[] = [];
+    let currentGroup: { speaker: string; tokens: Token[] } | null = null;
+
+    tokens.forEach((token) => {
+      const speaker = token.speaker || 'Speaker 1';
+      
+      if (!currentGroup || currentGroup.speaker !== speaker) {
+        if (currentGroup) {
+          groups.push(currentGroup);
+        }
+        currentGroup = { speaker, tokens: [token] };
+      } else {
+        currentGroup.tokens.push(token);
+      }
+    });
+
+    if (currentGroup) {
+      groups.push(currentGroup);
+    }
+
+    return groups.map((group, groupIdx) => {
+      const speakerColor = getSpeakerColor(group.speaker);
+      
+      const originalTokens = group.tokens.filter((t) => !t.translationStatus || t.translationStatus === 'original');
+      const translationTokens = group.tokens.filter((t) => t.translationStatus === 'translation');
+      
+      return (
+        <View key={groupIdx} style={styles.transcriptGroup}>
+          <View style={[styles.speakerBadge, { backgroundColor: speakerColor }]}>
+            <Text style={styles.speakerBadgeText}>{group.speaker}</Text>
+          </View>
+          
+          <View style={styles.transcriptBlock}>
+            {originalTokens.length > 0 && (
+              <View style={styles.transcriptLine}>
+                {originalTokens[0]?.language && (
+                  <View style={styles.languageBadge}>
+                    <Text style={styles.languageBadgeText}>{originalTokens[0].language.toUpperCase()}</Text>
+                  </View>
+                )}
+                <Text style={styles.originalText}>
+                  {originalTokens.map((t, i) => t.text + (i < originalTokens.length - 1 ? ' ' : ''))}
+                </Text>
+              </View>
+            )}
+            
+            {translationTokens.length > 0 && (
+              <View style={styles.transcriptLine}>
+                <View style={styles.languageBadge}>
+                  <Text style={styles.languageBadgeText}>EN</Text>
+                </View>
+                <Text style={styles.translatedText}>
+                  {translationTokens.map((t, i) => t.text + (i < translationTokens.length - 1 ? ' ' : ''))}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      );
+    });
+  };
+
   const styles = createStyles(colors);
   
   return (
@@ -453,45 +529,13 @@ export default function RecordingScreen() {
               <Text style={styles.pausedLabel}>PAUSED</Text>
             )}
 
-            {liveTranscript !== '' && (
+            {tokens.length > 0 && (
               <View style={styles.transcriptContainer}>
                 <Text style={styles.transcriptLabel}>
-                  Live Transcription {speakers.size > 1 ? '(' + speakers.size + ' speakers)' : ''}
+                  LIVE TRANSCRIPTION {speakers.size > 1 ? '(' + speakers.size + ' speakers)' : ''}
                 </Text>
-                <ScrollView style={styles.transcriptScroll}>
-                  <Text style={styles.transcriptText}>
-                    {liveTranscript.split('\n').map((line, lineIdx) => {
-                      const speakerMatch = line.match(/^(Speaker \d+|\d+):\s*/);
-                      const hasSpeaker = !!speakerMatch;
-                      const displayLine = hasSpeaker ? line : line;
-                      
-                      return (
-                        <Text key={lineIdx}>
-                          {hasSpeaker && (
-                            <Text style={styles.speakerLabel}>
-                              {speakerMatch![0]}
-                            </Text>
-                          )}
-                          {displayLine.replace(/^(Speaker \d+|\d+):\s*/, '').split(' ').map((word, wordIdx, arr) => {
-                            const isCurrentWord = lineIdx === liveTranscript.split('\n').length - 1 &&
-                              wordIdx === arr.length - 1 && word === currentWord;
-                            return (
-                              <Text
-                                key={wordIdx}
-                                style={[
-                                  styles.transcriptWord,
-                                  isCurrentWord && styles.highlightedWord,
-                                ]}
-                              >
-                                {word}{wordIdx < arr.length - 1 ? ' ' : ''}
-                              </Text>
-                            );
-                          })}
-                          {lineIdx < liveTranscript.split('\n').length - 1 ? '\n\n' : ''}
-                        </Text>
-                      );
-                    })}
-                  </Text>
+                <ScrollView style={styles.transcriptScroll} showsVerticalScrollIndicator={false}>
+                  {renderTokenGroups()}
                 </ScrollView>
               </View>
             )}
@@ -585,44 +629,73 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   transcriptContainer: {
     width: '100%',
-    maxHeight: 300,
-    backgroundColor: colors.card,
+    maxHeight: 400,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 20,
-    padding: 20,
+    padding: 16,
     marginTop: 20,
   },
   transcriptLabel: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: AuraColors.accentOrange,
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: '#999',
     marginBottom: 12,
     textTransform: 'uppercase' as const,
     letterSpacing: 1,
   },
   transcriptScroll: {
-    maxHeight: 250,
+    maxHeight: 350,
   },
-  transcriptText: {
-    fontSize: 18,
-    lineHeight: 28,
-    color: colors.text,
+  transcriptGroup: {
+    marginBottom: 12,
+  },
+  speakerBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 6,
+  },
+  speakerBadgeText: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: '#FFF',
+    letterSpacing: 0.5,
+  },
+  transcriptBlock: {
+    gap: 6,
+  },
+  transcriptLine: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  languageBadge: {
+    backgroundColor: '#F0F0F0',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginTop: 2,
+  },
+  languageBadgeText: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    color: '#666',
+    letterSpacing: 0.3,
+  },
+  originalText: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 20,
+    color: '#000',
     fontWeight: '400' as const,
   },
-  transcriptWord: {
-    fontSize: 18,
-    lineHeight: 28,
-    color: colors.text,
+  translatedText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 19,
+    color: '#4A90E2',
     fontWeight: '400' as const,
-  },
-  highlightedWord: {
-    color: AuraColors.accentOrange,
-    fontWeight: '700' as const,
-  },
-  speakerLabel: {
-    fontSize: 18,
-    lineHeight: 28,
-    color: AuraColors.accentOrange,
-    fontWeight: '700' as const,
   },
   scrollContent: {
     flex: 1,
