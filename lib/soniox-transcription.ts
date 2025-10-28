@@ -39,7 +39,7 @@ export class SonioxRealtimeTranscription {
         
         const config = {
           api_key: SONIOX_API_KEY,
-          model: 'stt-rt-preview',
+          model: 'stt-rt-v3',
           audio_format: 'pcm_s16le',
           sample_rate: 16000,
           num_channels: 1,
@@ -50,11 +50,11 @@ export class SonioxRealtimeTranscription {
         console.log('Sending configuration:', config);
         this.ws?.send(JSON.stringify(config));
         
+        this.isConfigured = true;
+        console.log('Configuration sent, ready to stream audio');
         setTimeout(() => {
-          this.isConfigured = true;
-          console.log('Configuration sent, ready to stream audio');
           this.processAudioQueue();
-        }, 100);
+        }, 10);
         
         this.keepaliveInterval = setInterval(() => {
           if (this.ws && this.isConnected) {
@@ -238,7 +238,7 @@ export async function transcribeAudioFile(uri: string): Promise<{
         
         const config = {
           api_key: SONIOX_API_KEY,
-          model: 'stt-rt-preview',
+          model: 'stt-rt-v3',
           audio_format: audioFormat,
           enable_speaker_diarization: true,
           enable_language_identification: true,
@@ -251,18 +251,26 @@ export async function transcribeAudioFile(uri: string): Promise<{
           if (ws.readyState === WebSocket.OPEN) {
             try {
               ws.send(JSON.stringify({ type: 'keepalive' }));
+              console.log('Keepalive sent');
             } catch (error) {
               console.error('Keepalive error:', error);
             }
           }
-        }, 15000);
+        }, 20000);
 
-        const CHUNK_SIZE = 8192;
+        const CHUNK_SIZE = 16384;
         let offset = 0;
+        let chunksSent = 0;
         
         const sendNextChunk = () => {
+          if (ws.readyState !== WebSocket.OPEN) {
+            console.error('WebSocket closed unexpectedly');
+            if (keepaliveInterval) clearInterval(keepaliveInterval);
+            return;
+          }
+          
           if (offset >= arrayBuffer.byteLength) {
-            console.log('All audio data sent, sending empty frame...');
+            console.log('All audio data sent (' + chunksSent + ' chunks), sending empty frame...');
             ws.send(new ArrayBuffer(0));
             if (keepaliveInterval) clearInterval(keepaliveInterval);
             return;
@@ -274,8 +282,13 @@ export async function transcribeAudioFile(uri: string): Promise<{
           try {
             ws.send(chunk);
             offset = end;
+            chunksSent++;
             
-            setTimeout(sendNextChunk, 50);
+            if (chunksSent % 10 === 0) {
+              console.log('Sent', chunksSent, 'chunks, progress:', Math.round((offset / arrayBuffer.byteLength) * 100) + '%');
+            }
+            
+            setTimeout(sendNextChunk, 20);
           } catch (error) {
             console.error('Error sending chunk:', error);
             if (keepaliveInterval) clearInterval(keepaliveInterval);
@@ -283,8 +296,8 @@ export async function transcribeAudioFile(uri: string): Promise<{
           }
         };
         
-        console.log('Starting audio stream, size:', arrayBuffer.byteLength);
-        setTimeout(() => sendNextChunk(), 100);
+        console.log('Starting audio stream, size:', arrayBuffer.byteLength, 'bytes');
+        setTimeout(() => sendNextChunk(), 50);
       };
 
       ws.onmessage = (event) => {
