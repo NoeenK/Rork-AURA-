@@ -22,7 +22,6 @@ export default function RecordingScreen() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
 
   const [transcriptionTokens, setTranscriptionTokens] = useState<TranscriptionToken[]>([]);
-  const [accumulatedTranscript, setAccumulatedTranscript] = useState<string>('');
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [liveTranscriptStatus, setLiveTranscriptStatus] = useState<string>('Initializing...');
@@ -133,31 +132,26 @@ export default function RecordingScreen() {
             setTranscriptionTokens([...tokens]);
             setLiveTranscriptStatus('');
             console.log('Received tokens:', tokens.length, 'Text:', text.slice(0, 50));
-            
-            if (isFinal) {
-              const finalText = tokens.filter(t => t.is_final).map(t => t.text).join('');
-              setAccumulatedTranscript(prev => prev + finalText);
-            }
           }
         },
         onError: (error: Error) => {
           console.error('Transcription error:', error);
-          setLiveTranscriptStatus('Transcription error. Recording will be transcribed after completion.');
+          setLiveTranscriptStatus('Connected. Speak to start transcribing...');
         },
       });
       
-      setLiveTranscriptStatus('Listening...');
-      console.log('Soniox WebSocket connected, starting live recording stream');
-      
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      client.startLiveRecording(rec);
-      
-      console.log('Live recording stream started');
+      if (Platform.OS === 'web') {
+        setLiveTranscriptStatus('Listening...');
+        await client.startLiveRecording();
+        console.log('Live recording stream started (Web)');
+      } else {
+        setLiveTranscriptStatus('Recording... (Transcription after completion)');
+        console.log('Mobile: expo-av does not support real-time streaming');
+      }
       
     } catch (error) {
       console.error('Failed to start live transcription:', error);
-      setLiveTranscriptStatus('Live transcription unavailable. Recording will be transcribed after completion.');
+      setLiveTranscriptStatus(Platform.OS === 'web' ? 'Microphone access required' : 'Recording...');
     }
   }, []);
 
@@ -197,7 +191,6 @@ export default function RecordingScreen() {
       setRecording(newRecording);
       recordingRef.current = newRecording;
       setRecordingState('recording');
-      setAccumulatedTranscript('');
       setRecordingDuration(0);
       setLiveTranscriptStatus('Connecting to transcription service...');
       console.log('Recording started');
@@ -270,7 +263,6 @@ export default function RecordingScreen() {
       }
       
       if (sonioxClient.current) {
-        sonioxClient.current.finishAudio();
         sonioxClient.current.disconnect();
         sonioxClient.current = null;
       }
@@ -283,14 +275,17 @@ export default function RecordingScreen() {
       const uri = recording.getURI();
       console.log('Recording stopped, URI:', uri);
       
+      const webTranscript = Platform.OS === 'web' && transcriptionTokens.length > 0
+        ? transcriptionTokens.map(t => t.text).join('')
+        : null;
+      
       setRecording(null);
       recordingRef.current = null;
 
       router.back();
 
       if (uri) {
-        const finalTranscript = accumulatedTranscript || null;
-        await transcribeAndSaveAudio(uri, finalTranscript);
+        await transcribeAndSaveAudio(uri, webTranscript);
       }
     } catch (error) {
       console.error('Failed to stop recording:', error);
@@ -302,7 +297,6 @@ export default function RecordingScreen() {
     const tempId = Date.now().toString();
     
     try {
-      // Add processing placeholder immediately
       addEntry({
         title: 'Processing...',
         audioUri: uri,
@@ -315,12 +309,12 @@ export default function RecordingScreen() {
       
       let text = existingTranscript;
       
-      if (!text || text === 'Listening...' || text === 'Transcription error. Please try again.' || text === 'Transcription unavailable') {
+      if (!text || text.trim().length === 0) {
         console.log('Transcribing full audio with Soniox...');
         text = await transcribeAudioFile(uri);
         console.log('Transcription completed:', text.slice(0, 100));
       } else {
-        console.log('Using accumulated real-time transcription from Soniox');
+        console.log('Using real-time transcription from Soniox (Web)');
       }
       
       console.log('Generating AI summary...');
@@ -337,7 +331,6 @@ export default function RecordingScreen() {
       
       const title = text.slice(0, 50) + (text.length > 50 ? '...' : '');
 
-      // Delete the processing entry and add the real one
       deleteEntry(tempId);
       addEntry({
         title,

@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 const SONIOX_API_KEY = '14f5b7c577d9b2c6f1c29351700ec4c9f233684dfdf27f67909a32262c896bde';
 const SONIOX_WEBSOCKET_URL = 'wss://stt-rt.soniox.com/transcribe-websocket';
 const OPENAI_API_KEY = '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';
@@ -21,10 +23,8 @@ export class SonioxRealtimeTranscription {
   private finalTokens: TranscriptionToken[] = [];
   private nonFinalTokens: TranscriptionToken[] = [];
   private accumulatedText = '';
-  private audioQueue: ArrayBuffer[] = [];
-  private isSending = false;
-  private recording: any = null;
-  private pollingInterval: any = null;
+  private mediaRecorder: any = null;
+  private audioStream: MediaStream | null = null;
 
   async connect(callbacks: TranscriptionCallback): Promise<void> {
     this.callbacks = callbacks;
@@ -33,12 +33,12 @@ export class SonioxRealtimeTranscription {
     this.accumulatedText = '';
 
     try {
-      console.log('Connecting to Soniox WebSocket...');
+      console.log('[Soniox] Connecting to WebSocket...');
       
       this.ws = new WebSocket(SONIOX_WEBSOCKET_URL);
 
       this.ws.onopen = () => {
-        console.log('Connected to Soniox WebSocket');
+        console.log('[Soniox] WebSocket connected');
         this.isConnected = true;
         
         const config = {
@@ -52,176 +52,165 @@ export class SonioxRealtimeTranscription {
         };
 
         this.ws?.send(JSON.stringify(config));
-        console.log('Soniox config sent');
+        console.log('[Soniox] Configuration sent:', config);
       };
 
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data.toString());
-          console.log('Soniox message:', data);
-
+          
           if (data.error_code) {
-            console.error(`Soniox error: ${data.error_code} - ${data.error_message}`);
+            console.error(`[Soniox] Error: ${data.error_code} - ${data.error_message}`);
             this.callbacks?.onError(new Error(data.error_message));
             return;
           }
 
-          if (data.tokens) {
+          if (data.tokens && data.tokens.length > 0) {
+            console.log('[Soniox] Received tokens:', data.tokens.length);
+            
+            // Reset non-final tokens on each response
             this.nonFinalTokens = [];
             
             for (const token of data.tokens) {
               if (token.text) {
                 if (token.is_final) {
                   this.finalTokens.push(token);
-                  this.accumulatedText += token.text;
                 } else {
                   this.nonFinalTokens.push(token);
                 }
               }
             }
 
+            // Send all tokens (final + non-final) to the UI
             const allTokens = [...this.finalTokens, ...this.nonFinalTokens];
             const fullText = allTokens.map(t => t.text).join('');
             
-            const hasNonFinal = this.nonFinalTokens.length > 0;
-            this.callbacks?.onTranscript(fullText, !hasNonFinal, allTokens);
-            
-            if (hasNonFinal) {
-              console.log('Live transcript:', fullText);
-            }
+            console.log('[Soniox] Transcript update:', fullText.slice(0, 100));
+            this.callbacks?.onTranscript(fullText, this.nonFinalTokens.length === 0, allTokens);
           }
 
           if (data.finished) {
-            console.log('Soniox session finished');
-            this.callbacks?.onTranscript(this.accumulatedText, true, this.finalTokens);
+            console.log('[Soniox] Session finished');
+            const finalText = this.finalTokens.map(t => t.text).join('');
+            this.callbacks?.onTranscript(finalText, true, this.finalTokens);
           }
         } catch (error) {
-          console.error('Error parsing Soniox WebSocket message:', error);
+          console.error('[Soniox] Error parsing message:', error);
         }
       };
 
       this.ws.onerror = (error) => {
-        console.error('Soniox WebSocket error:', error);
+        console.error('[Soniox] WebSocket error:', error);
         this.callbacks?.onError(new Error('WebSocket connection error'));
       };
 
       this.ws.onclose = () => {
-        console.log('Soniox WebSocket connection closed');
+        console.log('[Soniox] WebSocket connection closed');
         this.isConnected = false;
       };
     } catch (error) {
-      console.error('Failed to connect to Soniox:', error);
+      console.error('[Soniox] Failed to connect:', error);
       throw error;
     }
   }
 
-  sendAudio(audioData: ArrayBuffer | Uint8Array): void {
-    if (!this.isConnected || !this.ws) {
-      console.warn('WebSocket not connected');
-      return;
+  async startLiveRecording(): Promise<void> {
+    if (Platform.OS === 'web') {
+      // Web: Use MediaRecorder for real-time audio chunks
+      try {
+        console.log('[Soniox] Starting web audio capture...');
+        
+        this.audioStream = await (navigator.mediaDevices as any).getUserMedia({ 
+          audio: {
+            channelCount: 1,
+            sampleRate: 16000,
+          } 
+        });
+        
+        // Use webm opus format which Soniox supports
+        const options = { mimeType: 'audio/webm;codecs=opus' };
+        this.mediaRecorder = new (window as any).MediaRecorder(this.audioStream, options);
+        
+        this.mediaRecorder.ondataavailable = (event: any) => {
+          if (event.data && event.data.size > 0 && this.isConnected && this.ws) {
+            console.log('[Soniox] Sending audio chunk:', event.data.size, 'bytes');
+            
+            // Convert blob to ArrayBuffer and send
+            event.data.arrayBuffer().then((buffer: ArrayBuffer) => {
+              if (this.ws && this.isConnected) {
+                this.ws.send(buffer);
+              }
+            });
+          }
+        };
+        
+        // Request data every 250ms for real-time streaming
+        this.mediaRecorder.start(250);
+        console.log('[Soniox] MediaRecorder started');
+        
+      } catch (error) {
+        console.error('[Soniox] Failed to start web audio:', error);
+        this.callbacks?.onError(error as Error);
+      }
+    } else {
+      // Mobile: expo-av doesn't support real-time chunk access
+      console.log('[Soniox] Mobile: Real-time transcription not available with expo-av');
+      console.log('[Soniox] Recording will be transcribed after completion');
     }
+  }
 
-    try {
-      this.ws.send(audioData);
-    } catch (error) {
-      console.error('Error sending audio to Soniox:', error);
-      this.callbacks?.onError(error as Error);
+  stopLiveRecording(): void {
+    if (Platform.OS === 'web') {
+      if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+        this.mediaRecorder.stop();
+        console.log('[Soniox] MediaRecorder stopped');
+      }
+      
+      if (this.audioStream) {
+        this.audioStream.getTracks().forEach(track => track.stop());
+        this.audioStream = null;
+        console.log('[Soniox] Audio stream stopped');
+      }
     }
   }
 
   async sendAudioFile(uri: string): Promise<void> {
     if (!this.isConnected || !this.ws) {
-      console.warn('WebSocket not connected');
+      console.warn('[Soniox] WebSocket not connected');
       return;
     }
 
     try {
-      console.log('Fetching audio file for streaming:', uri);
+      console.log('[Soniox] Streaming audio file:', uri);
       const response = await fetch(uri);
       const blob = await response.blob();
       const arrayBuffer = await blob.arrayBuffer();
       
-      console.log('Audio file size:', arrayBuffer.byteLength, 'bytes');
+      console.log('[Soniox] Audio file size:', arrayBuffer.byteLength, 'bytes');
       
-      const chunkSize = 3840;
+      // Stream in chunks to simulate real-time
+      const chunkSize = 3840; // Recommended by Soniox
       let offset = 0;
       
       const sendChunk = () => {
-        if (offset < arrayBuffer.byteLength && this.isConnected) {
+        if (offset < arrayBuffer.byteLength && this.isConnected && this.ws) {
           const chunk = arrayBuffer.slice(offset, offset + chunkSize);
-          this.ws?.send(chunk);
-          console.log(`Sent chunk ${offset} - ${offset + chunkSize} of ${arrayBuffer.byteLength}`);
+          this.ws.send(chunk);
           offset += chunkSize;
           
-          // Send chunks at ~120ms intervals to simulate real-time
+          // Send chunks at ~120ms intervals
           setTimeout(sendChunk, 120);
         } else if (offset >= arrayBuffer.byteLength) {
-          console.log('All audio chunks sent, sending end-of-audio signal');
-          this.ws?.send('');
+          console.log('[Soniox] All chunks sent, sending end-of-audio signal');
+          this.finishAudio();
         }
       };
       
       sendChunk();
     } catch (error) {
-      console.error('Error sending audio file:', error);
+      console.error('[Soniox] Error streaming audio file:', error);
       this.callbacks?.onError(error as Error);
     }
-  }
-
-  startLiveRecording(recording: any): void {
-    this.recording = recording;
-    
-    const sendAudioData = async () => {
-      if (!this.isConnected || !this.ws || !this.recording) {
-        return;
-      }
-
-      try {
-        const status = await this.recording.getStatusAsync();
-        if (!status.isRecording) {
-          return;
-        }
-
-        const uri = this.recording.getURI();
-        if (uri) {
-          try {
-            const response = await fetch(uri);
-            const blob = await response.blob();
-            const arrayBuffer = await blob.arrayBuffer();
-            
-            if (arrayBuffer.byteLength > 0) {
-              const chunkSize = 8192;
-              let offset = 0;
-              
-              while (offset < arrayBuffer.byteLength && this.isConnected) {
-                const chunk = arrayBuffer.slice(offset, Math.min(offset + chunkSize, arrayBuffer.byteLength));
-                if (chunk.byteLength > 0) {
-                  this.ws?.send(chunk);
-                  console.log(`Sent audio chunk: ${chunk.byteLength} bytes`);
-                }
-                offset += chunkSize;
-              }
-            }
-          } catch (fetchError) {
-            console.log('Audio file not ready yet, will retry...');
-          }
-        }
-      } catch (error) {
-        console.error('Error sending live audio:', error);
-      }
-    };
-
-    this.pollingInterval = setInterval(sendAudioData, 1000);
-    console.log('Started live recording stream to Soniox');
-  }
-
-  stopLiveRecording(): void {
-    if (this.pollingInterval) {
-      clearInterval(this.pollingInterval);
-      this.pollingInterval = null;
-    }
-    this.recording = null;
-    console.log('Stopped live recording stream');
   }
 
   finishAudio(): void {
@@ -230,17 +219,21 @@ export class SonioxRealtimeTranscription {
     }
 
     try {
+      // Send empty message to signal end of audio
       this.ws.send('');
-      console.log('Sent end-of-audio signal to Soniox');
+      console.log('[Soniox] End-of-audio signal sent');
     } catch (error) {
-      console.error('Error finishing audio:', error);
-      this.callbacks?.onError(error as Error);
+      console.error('[Soniox] Error finishing audio:', error);
     }
   }
 
   disconnect(): void {
     this.stopLiveRecording();
+    
     if (this.ws) {
+      if (this.isConnected) {
+        this.finishAudio();
+      }
       this.ws.close();
       this.ws = null;
       this.isConnected = false;
@@ -252,21 +245,21 @@ export class SonioxRealtimeTranscription {
   }
 
   getFinalTranscript(): string {
-    return this.accumulatedText;
+    return this.finalTokens.map(t => t.text).join('');
   }
 }
 
 export async function transcribeAudioFile(uri: string): Promise<string> {
   return new Promise((resolve, reject) => {
     try {
-      console.log('Starting Soniox transcription for:', uri);
+      console.log('[Soniox] Starting file transcription:', uri);
       
       const ws = new WebSocket(SONIOX_WEBSOCKET_URL);
       let finalTokens: any[] = [];
       let hasError = false;
 
       ws.onopen = async () => {
-        console.log('WebSocket opened for file transcription');
+        console.log('[Soniox] WebSocket opened for file transcription');
         
         const config: any = {
           api_key: SONIOX_API_KEY,
@@ -279,12 +272,14 @@ export async function transcribeAudioFile(uri: string): Promise<string> {
         };
 
         ws.send(JSON.stringify(config));
-        console.log('Config sent, now sending audio file...');
+        console.log('[Soniox] Config sent, streaming audio file...');
 
         try {
           const response = await fetch(uri);
           const blob = await response.blob();
           const arrayBuffer = await blob.arrayBuffer();
+          
+          console.log('[Soniox] Audio file size:', arrayBuffer.byteLength);
           
           const chunkSize = 3840;
           let offset = 0;
@@ -295,15 +290,15 @@ export async function transcribeAudioFile(uri: string): Promise<string> {
               ws.send(chunk);
               offset += chunkSize;
               setTimeout(sendChunk, 120);
-            } else {
+            } else if (offset >= arrayBuffer.byteLength) {
               ws.send('');
-              console.log('All audio data sent');
+              console.log('[Soniox] All audio data sent');
             }
           };
           
           sendChunk();
         } catch (error) {
-          console.error('Error reading audio file:', error);
+          console.error('[Soniox] Error reading audio file:', error);
           hasError = true;
           reject(error);
         }
@@ -314,7 +309,7 @@ export async function transcribeAudioFile(uri: string): Promise<string> {
           const data = JSON.parse(event.data.toString());
 
           if (data.error_code) {
-            console.error(`Soniox error: ${data.error_code} - ${data.error_message}`);
+            console.error(`[Soniox] Error: ${data.error_code} - ${data.error_message}`);
             hasError = true;
             reject(new Error(data.error_message));
             ws.close();
@@ -331,23 +326,23 @@ export async function transcribeAudioFile(uri: string): Promise<string> {
 
           if (data.finished) {
             const fullText = finalTokens.map(t => t.text).join('');
-            console.log('Transcription completed:', fullText.slice(0, 100));
+            console.log('[Soniox] Transcription completed:', fullText.slice(0, 100));
             resolve(fullText || 'No transcription available');
             ws.close();
           }
         } catch (error) {
-          console.error('Error parsing message:', error);
+          console.error('[Soniox] Error parsing message:', error);
         }
       };
 
       ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        console.error('[Soniox] WebSocket error:', error);
         hasError = true;
         reject(new Error('WebSocket error'));
       };
 
       ws.onclose = () => {
-        console.log('WebSocket closed');
+        console.log('[Soniox] WebSocket closed');
         if (!hasError && finalTokens.length === 0) {
           reject(new Error('WebSocket closed without receiving transcription'));
         }
@@ -362,7 +357,7 @@ export async function transcribeAudioFile(uri: string): Promise<string> {
       }, 60000);
 
     } catch (error) {
-      console.error('Transcription error:', error);
+      console.error('[Soniox] Transcription error:', error);
       reject(error);
     }
   });
