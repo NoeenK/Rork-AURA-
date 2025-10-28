@@ -574,14 +574,12 @@ ${selectedFullEntry.transcript}`;
                 {selectedTab === 'summary' && (
                   <View style={styles.auraSummarySection}>
                     <View style={styles.overviewSection}>
-                      <TextInput
-                        style={styles.editableText}
-                        value={editableSummary}
-                        onChangeText={setEditableSummary}
-                        multiline
-                        placeholder="No summary available"
-                        placeholderTextColor={colors.textSecondary}
-                      />
+                      <Text
+                        style={styles.summaryDisplayText}
+                        numberOfLines={12}
+                      >
+                        {editableSummary || 'No summary available'}
+                      </Text>
                     </View>
                   </View>
                 )}
@@ -1253,6 +1251,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: '500' as const,
     padding: 0,
     margin: 0,
+  },
+  summaryDisplayText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.text,
+    fontWeight: '500' as const,
   },
   todoItemContainer: {
     flexDirection: 'row',
