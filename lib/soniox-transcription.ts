@@ -45,6 +45,7 @@ export class SonioxRealtimeTranscription {
           num_channels: 1,
           enable_speaker_diarization: true,
           enable_language_identification: true,
+          enable_endpoint_detection: true,
         };
         
         console.log('Sending configuration:', config);
@@ -256,6 +257,7 @@ export async function transcribeAudioFile(uri: string): Promise<{
           audio_format: audioFormat,
           enable_speaker_diarization: true,
           enable_language_identification: true,
+          enable_endpoint_detection: true,
         };
         
         console.log('Sending configuration:', config);

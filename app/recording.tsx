@@ -190,7 +190,7 @@ export default function RecordingScreen() {
   };
 
   const startLiveTranscription = async (rec: Audio.Recording) => {
-    setLiveTranscript('Processing audio...');
+    setLiveTranscript('Listening...');
     
     if (Platform.OS === 'web') {
       try {
@@ -219,8 +219,8 @@ export default function RecordingScreen() {
             
             if (isFinal) {
               setAccumulatedTranscript(prev => {
-                const speakerPrefix = speaker ? speaker + ': ' : '';
-                const newText = prev ? prev + '\n' + speakerPrefix + text : speakerPrefix + text;
+                const speakerPrefix = speaker ? `${speaker}: ` : '';
+                const newText = prev ? `${prev}\n\n${speakerPrefix}${text}` : `${speakerPrefix}${text}`;
                 setLiveTranscript(newText);
                 
                 if (speaker) {
@@ -235,17 +235,19 @@ export default function RecordingScreen() {
               if (words.length > 0) {
                 setCurrentWord(words[words.length - 1]);
               }
-              const speakerPrefix = speaker ? speaker + ': ' : '';
-              setLiveTranscript(accumulatedTranscript + (accumulatedTranscript ? '\n' : '') + speakerPrefix + text);
+              const speakerPrefix = speaker ? `${speaker}: ` : '';
+              const displayText = accumulatedTranscript ? `${accumulatedTranscript}\n\n${speakerPrefix}${text}` : `${speakerPrefix}${text}`;
+              setLiveTranscript(displayText);
             }
           },
           onError: (error: Error) => {
             console.error('Soniox transcription error:', error);
+            setLiveTranscript('Transcription error. Please try again.');
           },
         };
         
         await transcriptionService.connect(callbacks);
-        console.log('Soniox live transcription connected');
+        console.log('Soniox live transcription connected with speaker diarization, language ID, and endpoint detection');
         
         processor.onaudioprocess = (e) => {
           const inputData = e.inputBuffer.getChannelData(0);
@@ -270,7 +272,7 @@ export default function RecordingScreen() {
         
       } catch (error) {
         console.error('Failed to start web live transcription:', error);
-        setLiveTranscript('Live transcription unavailable on mobile');
+        setLiveTranscript('Live transcription unavailable');
       }
     } else {
       setLiveTranscript('Live transcription unavailable on mobile');
