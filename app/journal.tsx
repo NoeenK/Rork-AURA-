@@ -996,10 +996,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingBottom: 16,
   },
   title: {
-    fontSize: 34,
-    fontWeight: '800' as const,
+    fontSize: 32,
+    fontWeight: '400' as const,
     color: colors.text,
-    letterSpacing: 0.5,
+    letterSpacing: 2,
   },
   closeButton: {
     padding: 8,

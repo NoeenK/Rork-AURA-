@@ -28,6 +28,7 @@ export default function RecordingScreen() {
   const [liveTranscriptStatus, setLiveTranscriptStatus] = useState<string>('Initializing...');
   const [locationString, setLocationString] = useState<string | null>(null);
   const [locationCoords, setLocationCoords] = useState<{ latitude: number; longitude: number; } | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const heartbeatScale = useRef(new Animated.Value(1)).current;
@@ -111,6 +112,11 @@ export default function RecordingScreen() {
             setTranscriptionTokens([...tokens]);
             setLiveTranscriptStatus('');
             console.log('Received tokens:', tokens.length, 'Text:', text.slice(0, 50));
+            
+            // Auto-scroll to bottom when new tokens arrive
+            setTimeout(() => {
+              scrollViewRef.current?.scrollToEnd({ animated: true });
+            }, 100);
           }
         },
         onError: (error: Error) => {
@@ -506,6 +512,7 @@ export default function RecordingScreen() {
               style={styles.orangeGradientOverlay}
             />
             <ScrollView 
+              ref={scrollViewRef}
               style={styles.glassScrollView}
               contentContainerStyle={styles.glassScrollContent}
               showsVerticalScrollIndicator={false}

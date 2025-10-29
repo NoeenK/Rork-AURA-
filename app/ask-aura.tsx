@@ -301,24 +301,7 @@ export default function AskAuraScreen() {
             <History color={colors.text} size={24} />
           </TouchableOpacity>
           
-          <View style={styles.modeToggle}>
-            <TouchableOpacity
-              style={[styles.modeButton, mode === 'ask' && styles.modeButtonActive]}
-              onPress={() => toggleMode('ask')}
-            >
-              <Text style={[styles.modeButtonText, mode === 'ask' && styles.modeButtonTextActive]}>
-                Ask
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modeButton, mode === 'create' && styles.modeButtonActive]}
-              onPress={() => toggleMode('create')}
-            >
-              <Text style={[styles.modeButtonText, mode === 'create' && styles.modeButtonTextActive]}>
-                Create
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={[styles.headerTitle, fontLoaded && { fontFamily: 'Synthra' }]}>Ask Aura</Text>
 
           <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
             <X color={colors.text} size={28} />
@@ -653,6 +636,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 24,
     paddingBottom: 16,
+  },
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: '400' as const,
+    color: colors.text,
+    letterSpacing: 2,
   },
   modeToggle: {
     flexDirection: 'row',
