@@ -1,7 +1,6 @@
 import { BlurView } from 'expo-blur';
 import React from 'react';
 import { Platform, StyleSheet, View, ViewStyle } from 'react-native';
-import { AuraColors } from '@/constants/colors';
 
 interface GlassCardProps {
   children: React.ReactNode;
@@ -29,14 +28,24 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: AuraColors.glassLight,
+    backgroundColor: 'rgba(237, 232, 220, 0.4)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(230, 147, 77, 0.15)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   fallbackCard: {
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(237, 232, 220, 0.4)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(230, 147, 77, 0.15)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
 });
