@@ -67,7 +67,14 @@ export class SonioxRealtimeTranscription {
           
           if (data.error_code) {
             console.error(`[Soniox] Error: ${data.error_code} - ${data.error_message}`);
-            this.callbacks?.onError(new Error(data.error_message));
+            
+            // Handle 408 timeout specially - it usually means audio format issues
+            if (data.error_code === 408) {
+              console.error('[Soniox] Audio decode timeout - check audio format compatibility');
+              this.callbacks?.onError(new Error('Audio format incompatible. Please try again.'));
+            } else {
+              this.callbacks?.onError(new Error(data.error_message));
+            }
             return;
           }
 
@@ -133,9 +140,17 @@ export class SonioxRealtimeTranscription {
           } 
         });
         
-        // Use webm opus format which Soniox supports
+        // Use PCM format with specific sample rate for Soniox
         const options = { mimeType: 'audio/webm;codecs=opus' };
-        this.mediaRecorder = new (window as any).MediaRecorder(this.audioStream, options);
+        let recorder;
+        try {
+          recorder = new (window as any).MediaRecorder(this.audioStream, options);
+        } catch {
+          // Fallback if opus not supported
+          console.log('[Soniox] Falling back to default codec');
+          recorder = new (window as any).MediaRecorder(this.audioStream);
+        }
+        this.mediaRecorder = recorder;
         
         this.mediaRecorder.ondataavailable = (event: any) => {
           if (event.data && event.data.size > 0 && this.isConnected && this.ws) {
@@ -150,8 +165,8 @@ export class SonioxRealtimeTranscription {
           }
         };
         
-        // Request data every 250ms for real-time streaming
-        this.mediaRecorder.start(250);
+        // Request data every 500ms for real-time streaming (better stability)
+        this.mediaRecorder.start(500);
         console.log('[Soniox] MediaRecorder started');
         
       } catch (error) {
@@ -195,7 +210,7 @@ export class SonioxRealtimeTranscription {
       console.log('[Soniox] Audio file size:', arrayBuffer.byteLength, 'bytes');
       
       // Stream in chunks to simulate real-time
-      const chunkSize = 3840; // Recommended by Soniox
+      const chunkSize = 8000; // Larger chunks for better stability
       let offset = 0;
       
       const sendChunk = () => {
@@ -204,8 +219,8 @@ export class SonioxRealtimeTranscription {
           this.ws.send(chunk);
           offset += chunkSize;
           
-          // Send chunks at ~120ms intervals
-          setTimeout(sendChunk, 120);
+          // Send chunks at ~200ms intervals (slower = more stable)
+          setTimeout(sendChunk, 200);
         } else if (offset >= arrayBuffer.byteLength) {
           console.log('[Soniox] All chunks sent, sending end-of-audio signal');
           this.finishAudio();
@@ -298,7 +313,7 @@ export async function transcribeAudioFileWithSpeakers(uri: string): Promise<{ tr
           
           console.log('[Soniox] Audio file size:', arrayBuffer.byteLength);
           
-          const chunkSize = 3840;
+          const chunkSize = 8000;
           let offset = 0;
           
           const sendChunk = () => {
@@ -306,7 +321,7 @@ export async function transcribeAudioFileWithSpeakers(uri: string): Promise<{ tr
               const chunk = arrayBuffer.slice(offset, offset + chunkSize);
               ws.send(chunk);
               offset += chunkSize;
-              setTimeout(sendChunk, 120);
+              setTimeout(sendChunk, 200);
             } else if (offset >= arrayBuffer.byteLength) {
               ws.send('');
               console.log('[Soniox] All audio data sent');
@@ -459,7 +474,7 @@ export async function transcribeAudioFile(uri: string): Promise<string> {
           
           console.log('[Soniox] Audio file size:', arrayBuffer.byteLength);
           
-          const chunkSize = 3840;
+          const chunkSize = 8000;
           let offset = 0;
           
           const sendChunk = () => {
@@ -467,7 +482,7 @@ export async function transcribeAudioFile(uri: string): Promise<string> {
               const chunk = arrayBuffer.slice(offset, offset + chunkSize);
               ws.send(chunk);
               offset += chunkSize;
-              setTimeout(sendChunk, 120);
+              setTimeout(sendChunk, 200);
             } else if (offset >= arrayBuffer.byteLength) {
               ws.send('');
               console.log('[Soniox] All audio data sent');
