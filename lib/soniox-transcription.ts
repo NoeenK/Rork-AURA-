@@ -198,20 +198,7 @@ export class SonioxRealtimeTranscription {
       } else {
         // For React Native mobile, use FileReader or XMLHttpRequest
         const response = await fetch(uri);
-        const reader = new FileReader();
-        const blob = await response.blob();
-        
-        arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
-          reader.onloadend = () => {
-            if (reader.result instanceof ArrayBuffer) {
-              resolve(reader.result);
-            } else {
-              reject(new Error('Failed to read audio file'));
-            }
-          };
-          reader.onerror = reject;
-          reader.readAsArrayBuffer(blob);
-        });
+        arrayBuffer = await response.arrayBuffer();
       }
       
       console.log('[Soniox] Audio file size:', arrayBuffer.byteLength, 'bytes');
@@ -328,20 +315,7 @@ export async function transcribeAudioFileWithSpeakers(uri: string): Promise<{ tr
             arrayBuffer = await blob.arrayBuffer();
           } else {
             const response = await fetch(uri);
-            const reader = new FileReader();
-            const blob = await response.blob();
-            
-            arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
-              reader.onloadend = () => {
-                if (reader.result instanceof ArrayBuffer) {
-                  resolve(reader.result);
-                } else {
-                  reject(new Error('Failed to read audio file'));
-                }
-              };
-              reader.onerror = reject;
-              reader.readAsArrayBuffer(blob);
-            });
+            arrayBuffer = await response.arrayBuffer();
           }
           
           console.log('[Soniox] Audio file size:', arrayBuffer.byteLength);
@@ -509,20 +483,7 @@ export async function transcribeAudioFile(uri: string): Promise<string> {
             arrayBuffer = await blob.arrayBuffer();
           } else {
             const response = await fetch(uri);
-            const reader = new FileReader();
-            const blob = await response.blob();
-            
-            arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
-              reader.onloadend = () => {
-                if (reader.result instanceof ArrayBuffer) {
-                  resolve(reader.result);
-                } else {
-                  reject(new Error('Failed to read audio file'));
-                }
-              };
-              reader.onerror = reject;
-              reader.readAsArrayBuffer(blob);
-            });
+            arrayBuffer = await response.arrayBuffer();
           }
           
           console.log('[Soniox] Audio file size:', arrayBuffer.byteLength);
