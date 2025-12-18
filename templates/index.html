@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Target Finder Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #000000;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Tron Grid Background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(cyan 1px, transparent 1px),
+                linear-gradient(90deg, cyan 1px, transparent 1px);
+            background-size: 50px 50px;
+            opacity: 0.1;
+            z-index: 0;
+            animation: gridMove 20s linear infinite;
+        }
+
+        @keyframes gridMove {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(50px, 50px); }
+        }
+
+        /* 3D Animated Panda Background */
+        .panda-container {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            height: 300px;
+            perspective: 1000px;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .panda-3d {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transform-style: preserve-3d;
+            animation: pandaRotate 8s infinite linear;
+        }
+
+        @keyframes pandaRotate {
+            0% { transform: rotateY(0deg) rotateX(10deg); }
+            50% { transform: rotateY(180deg) rotateX(-10deg); }
+            100% { transform: rotateY(360deg) rotateX(10deg); }
+        }
+
+        /* Panda Body */
+        .panda-body {
+            position: absolute;
+            width: 150px;
+            height: 180px;
+            background: #ffffff;
+            border: 3px solid #00ffff;
+            border-radius: 50% 50% 45% 45%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) translateZ(0px);
+            box-shadow: 0 0 30px #00ffff, inset 0 0 20px rgba(0, 255, 255, 0.3);
+            animation: pandaPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pandaPulse {
+            0%, 100% { transform: translate(-50%, -50%) translateZ(0px) scale(1); }
+            50% { transform: translate(-50%, -50%) translateZ(20px) scale(1.05); }
+        }
+
+        /* Panda Head */
+        .panda-head {
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            background: #ffffff;
+            border: 3px solid #00ffff;
+            border-radius: 50%;
+            top: 20%;
+            left: 50%;
+            transform: translate(-50%, -50%) translateZ(10px);
+            box-shadow: 0 0 25px #00ffff, inset 0 0 15px rgba(0, 255, 255, 0.3);
+        }
+
+        /* Panda Ears */
+        .panda-ear {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            background: #000000;
+            border: 2px solid #00ffff;
+            border-radius: 50%;
+            box-shadow: 0 0 15px #00ffff;
+        }
+
+        .panda-ear.left {
+            top: 10%;
+            left: 15%;
+            transform: translateZ(5px);
+        }
+
+        .panda-ear.right {
+            top: 10%;
+            right: 15%;
+            transform: translateZ(5px);
+        }
+
+        /* Panda Eyes */
+        .panda-eye {
+            position: absolute;
+            width: 25px;
+            height: 30px;
+            background: #000000;
+            border: 2px solid #00ffff;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #00ffff, inset 0 0 5px #ffffff;
+        }
+
+        .panda-eye.left {
+            top: 35%;
+            left: 25%;
+        }
+
+        .panda-eye.right {
+            top: 35%;
+            right: 25%;
+        }
+
+        /* Eye Shine */
+        .panda-eye::after {
+            content: '';
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: #ffffff;
+            border-radius: 50%;
+            top: 20%;
+            left: 30%;
+            animation: blink 3s infinite;
+        }
+
+        @keyframes blink {
+            0%, 90%, 100% { opacity: 1; }
+            95% { opacity: 0; }
+        }
+
+        /* Panda Nose */
+        .panda-nose {
+            position: absolute;
+            width: 20px;
+            height: 15px;
+            background: #000000;
+            border: 2px solid #00ffff;
+            border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+            top: 55%;
+            left: 50%;
+            transform: translateX(-50%);
+            box-shadow: 0 0 8px #00ffff;
+        }
+
+        /* Panda Mouth */
+        .panda-mouth {
+            position: absolute;
+            width: 40px;
+            height: 20px;
+            border: 2px solid #00ffff;
+            border-top: none;
+            border-radius: 0 0 50% 50%;
+            top: 65%;
+            left: 50%;
+            transform: translateX(-50%);
+            box-shadow: 0 0 8px #00ffff;
+        }
+
+        /* Floating Animation */
+        .panda-container {
+            animation: float 4s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(-50%, -50%) translateY(0px); }
+            50% { transform: translate(-50%, -50%) translateY(-30px); }
+        }
+
+        .container {
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid #00ffff;
+            border-radius: 0;
+            padding: 30px;
+            box-shadow: 
+                0 0 30px #00ffff,
+                0 0 60px rgba(0, 255, 255, 0.5),
+                inset 0 0 30px rgba(0, 255, 255, 0.1);
+            max-width: 600px;
+            width: 100%;
+            position: relative;
+            z-index: 10;
+        }
+
+        h1 {
+            text-align: center;
+            color: #00ffff;
+            margin-bottom: 20px;
+            font-size: 2.5em;
+            text-shadow: 
+                0 0 10px #00ffff,
+                0 0 20px #00ffff,
+                0 0 30px #00ffff;
+            letter-spacing: 3px;
+        }
+
+        .game-info {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(0, 255, 255, 0.05);
+            border: 1px solid #00ffff;
+            border-radius: 0;
+        }
+
+        .info-item {
+            text-align: center;
+        }
+
+        .info-label {
+            font-size: 0.9em;
+            color: #00ccff;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .info-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #00ffff;
+            text-shadow: 0 0 10px #00ffff;
+        }
+
+        .status {
+            text-align: center;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 0;
+            font-weight: bold;
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid;
+            font-family: 'Courier New', monospace;
+        }
+
+        .status.hint {
+            background: rgba(0, 255, 255, 0.1);
+            color: #00ffff;
+            border-color: #00ffff;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+        }
+
+        .status.win {
+            background: rgba(0, 255, 0, 0.1);
+            color: #00ff00;
+            border-color: #00ff00;
+            font-size: 1.2em;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.7);
+            text-shadow: 0 0 10px #00ff00;
+        }
+
+        .status.idle {
+            background: rgba(0, 255, 255, 0.05);
+            color: #00ccff;
+            border-color: #00ccff;
+        }
+
+        .grid-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .grid {
+            display: grid;
+            gap: 2px;
+            background: #000000;
+            padding: 3px;
+            border: 2px solid #00ffff;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+        }
+
+        .cell {
+            width: 40px;
+            height: 40px;
+            background: #000000;
+            border: 1px solid #003333;
+            border-radius: 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .cell:hover {
+            background: rgba(0, 255, 255, 0.1);
+            border-color: #00ffff;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+            transform: scale(1.05);
+        }
+
+        .cell.clicked {
+            background: rgba(255, 0, 0, 0.2);
+            border-color: #ff0066;
+            cursor: not-allowed;
+        }
+
+        .cell.clicked::after {
+            content: '✗';
+            color: #ff0066;
+            text-shadow: 0 0 10px #ff0066;
+            font-size: 20px;
+        }
+
+        .cell.target-found {
+            background: rgba(0, 255, 0, 0.3);
+            border-color: #00ff00;
+            animation: targetPulse 0.5s;
+            box-shadow: 0 0 20px #00ff00;
+        }
+
+        .cell.target-found::after {
+            content: '🎯';
+            font-size: 24px;
+            filter: drop-shadow(0 0 5px #00ff00);
+        }
+
+        @keyframes targetPulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 20px #00ff00; }
+            50% { transform: scale(1.2); box-shadow: 0 0 40px #00ff00; }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+
+        .controls {
+            text-align: center;
+        }
+
+        button {
+            background: #000000;
+            color: #00ffff;
+            border: 2px solid #00ffff;
+            padding: 12px 30px;
+            font-size: 1.1em;
+            border-radius: 0;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+        }
+
+        button:hover {
+            background: rgba(0, 255, 255, 0.1);
+            transform: translateY(-2px);
+            box-shadow: 0 0 25px #00ffff, 0 5px 15px rgba(0, 255, 255, 0.7);
+            text-shadow: 0 0 10px #00ffff;
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+    <!-- 3D Animated Panda Background -->
+    <div class="panda-container">
+        <div class="panda-3d">
+            <div class="panda-head">
+                <div class="panda-ear left"></div>
+                <div class="panda-ear right"></div>
+                <div class="panda-eye left"></div>
+                <div class="panda-eye right"></div>
+                <div class="panda-nose"></div>
+                <div class="panda-mouth"></div>
+            </div>
+            <div class="panda-body"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h1>🎯 TARGET FINDER</h1>
+        
+        <div class="game-info">
+            <div class="info-item">
+                <div class="info-label">Attempts</div>
+                <div class="info-value" id="attempts">0</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Grid Size</div>
+                <div class="info-value" id="grid-size">10x10</div>
+            </div>
+        </div>
+
+        <div class="status idle" id="status">
+            Click "New Game" to start!
+        </div>
+
+        <div class="grid-container">
+            <div class="grid" id="grid"></div>
+        </div>
+
+        <div class="controls">
+            <button onclick="newGame()">New Game</button>
+        </div>
+    </div>
+
+    <script>
+        let gameId = null;
+        let gridSize = 10;
+        let found = false;
+
+        function newGame() {
+            // Reset state
+            found = false;
+            document.getElementById('attempts').textContent = '0';
+            document.getElementById('status').textContent = 'FIND THE HIDDEN TARGET!';
+            document.getElementById('status').className = 'status hint';
+            
+            // Create grid
+            createGrid();
+            
+            // Start new game on server
+            fetch('/api/new-game', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ grid_size: gridSize })
+            })
+            .then(response => response.json())
+            .then(data => {
+                gameId = data.game_id;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to start game. Please try again.');
+            });
+        }
+
+        function createGrid() {
+            const grid = document.getElementById('grid');
+            grid.innerHTML = '';
+            grid.style.gridTemplateColumns = `repeat(${gridSize}, 40px)`;
+            
+            for (let i = 0; i < gridSize; i++) {
+                for (let j = 0; j < gridSize; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = i;
+                    cell.dataset.col = j;
+                    cell.onclick = () => handleClick(i, j, cell);
+                    grid.appendChild(cell);
+                }
+            }
+        }
+
+        function handleClick(row, col, cellElement) {
+            if (found || !gameId || cellElement.classList.contains('clicked')) {
+                return;
+            }
+
+            fetch('/api/guess', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    game_id: gameId,
+                    row: row,
+                    col: col
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+
+                document.getElementById('attempts').textContent = data.attempts;
+
+                if (data.found) {
+                    found = true;
+                    cellElement.classList.add('target-found');
+                    cellElement.classList.remove('clicked');
+                    document.getElementById('status').textContent = data.message;
+                    document.getElementById('status').className = 'status win';
+                } else {
+                    cellElement.classList.add('clicked');
+                    document.getElementById('status').textContent = data.hint + ` (Distance: ${data.distance})`;
+                    document.getElementById('status').className = 'status hint';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to make guess. Please try again.');
+            });
+        }
+
+        // Start a game on page load
+        window.onload = () => {
+            newGame();
+        };
+    </script>
+</body>
+</html>
