@@ -1,7 +1,8 @@
 from flask import Flask, render_template, jsonify, request
 import random
+import os
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='templates')
 
 # Store game state (target location) - in production, use sessions or database
 game_state = {}
@@ -9,6 +10,10 @@ game_state = {}
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/health')
+def health():
+    return jsonify({'status': 'ok'}), 200
 
 @app.route('/api/new-game', methods=['POST'])
 def new_game():
