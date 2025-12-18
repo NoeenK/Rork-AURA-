@@ -1,6 +1,5 @@
 from flask import Flask, render_template, jsonify, request
 import random
-import os
 
 app = Flask(__name__, template_folder='templates')
 
